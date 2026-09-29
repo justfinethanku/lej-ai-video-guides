@@ -93,7 +93,7 @@ async function filmBeat(page, cdp, slug, beat, pos, fresh, prevUrl) {
   // A "continue" beat filmed on its own starts where the previous beat's last take ended.
   const start = shot.continue && fresh && prevUrl ? prevUrl : shot.url;
   if (start && (!shot.continue || fresh)) {
-    await page.goto(SITE + start, { waitUntil: "domcontentloaded" });
+    await page.goto(/^https?:/.test(start) ? start : SITE + start, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(shot.settle ?? 3000);
   }
   const frames = [];
@@ -199,7 +199,7 @@ async function filmBeat(page, cdp, slug, beat, pos, fresh, prevUrl) {
   execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-vf", "fps=30,scale=2880:1620:flags=lanczos,format=yuv420p", "-c:v", "libx264", "-preset", "slow", "-crf", "14", "-tune", "animation", "-movflags", "+faststart", out]);
   rmSync(join(dir, ".."), { recursive: true, force: true });
   const seconds = +(tEnd - t0).toFixed(2);
-  writeFileSync(media(slug, "capture", `${beat.id}.json`), JSON.stringify({ id: beat.id, lead: LEAD, seconds, frames: kept.length, marks, events, url: page.url().replace(SITE, "") }, null, 2));
+  writeFileSync(media(slug, "capture", `${beat.id}.json`), JSON.stringify({ id: beat.id, lead: LEAD, seconds, frames: kept.length, marks, events, url: (({ pathname, search, hash }) => pathname + search + hash)(new URL(page.url())) }, null, 2));
   console.log(`${beat.id}  ${seconds.toFixed(1)} s  ${kept.length} frames  marks: ${Object.keys(marks).join(", ") || "-"}`);
 }
 
