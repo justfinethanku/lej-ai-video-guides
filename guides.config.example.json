@@ -1,0 +1,48 @@
+{
+  "product": "Relay Desk",
+  "site": "http://localhost:4400",
+  "serveDir": "demo-app",
+  "session": {
+    "from": "none",
+    "cdpPort": 9222,
+    "host": "localhost"
+  },
+  "viewport": {
+    "width": 1440,
+    "height": 810,
+    "scale": 2
+  },
+  "timezone": "America/New_York",
+  "media": "~/Movies/guides-production/relay-desk",
+  "voice": {
+    "id": "cgSgspJ2msm6clMCkdW9",
+    "model": "eleven_v4",
+    "stability": 0.65,
+    "similarity": 0.8,
+    "lufs": -16,
+    "keyEnv": "ELEVENLABS_API_KEY"
+  },
+  "music": {
+    "file": "music/bed-v1.mp3",
+    "db": -24
+  },
+  "brand": {
+    "font": "Inter",
+    "accent": "#4f46e5",
+    "text": "#1f2330",
+    "muted": "#6b7080",
+    "line": "#e4e6ec",
+    "background": "#ffffff",
+    "logo": "logo.png",
+    "logoHeight": 64,
+    "wordmark": null,
+    "wordmarkHeight": 28
+  },
+  "resolve": {
+    "project": "Relay Desk Guides",
+    "voiceDb": -2
+  },
+  "publish": {
+    "type": "folder"
+  }
+}

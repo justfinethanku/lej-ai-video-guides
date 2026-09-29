@@ -1,0 +1,139 @@
+{
+  "slug": "requests",
+  "position": 1,
+  "title": "Requests",
+  "summary": "Every customer request in one list: see what's waiting, reply, and close what's done.",
+  "asOf": "2026-09-29",
+  "chapters": ["How requests move", "The list", "Open a request", "Reply", "Close it"],
+  "notes": "Films the demo app in demo-app/ (served into the browser by serveDir; nothing to clean up: its data resets on every load).",
+  "beats": [
+    {
+      "id": "q01",
+      "say": "This is Requests, in Relay Desk. It's where every question from a customer lands, so you can see what's waiting, reply, and close what's done.",
+      "graphic": { "kind": "TitleCard" }
+    },
+    {
+      "id": "q02",
+      "chapter": "How requests move",
+      "say": "Here's how a request moves. A customer writes in, and it arrives in Open. Someone takes it. You reply, and it moves to Waiting on customer. When it's finished, you close it, and it goes to Done.",
+      "graphic": {
+        "kind": "Flow",
+        "props": {
+          "heading": "How a request moves",
+          "steps": [
+            { "title": "Arrives", "text": "In Open" },
+            { "title": "Assigned", "text": "Someone takes it" },
+            { "title": "Replied", "text": "Moves to Waiting on customer" },
+            { "title": "Closed", "text": "Goes to Done, for good" }
+          ]
+        },
+        "cues": ["arrives", "takes", "reply", "close"]
+      }
+    },
+    {
+      "id": "q03",
+      "chapter": "The list",
+      "say": "Requests opens on the Open tab. Each row is one request: who it's from, what they asked, its priority, how long ago it came in, and who has it. Anything older than a day shows its age in red.",
+      "shot": {
+        "url": "/#/requests",
+        "steps": [
+          { "hover": "tbody tr:nth-child(1) .subj", "name": "row", "at": "row" },
+          { "hover": "td.age.late", "name": "late", "at": "red" }
+        ]
+      },
+      "callouts": [
+        { "mark": "row", "label": "One request", "note": "Who, what, priority, age, owner", "at": "row", "until": "red", "side": "bottom", "dim": false },
+        { "mark": "late", "label": "Over a day old", "at": "red", "side": "left" }
+      ]
+    },
+    {
+      "id": "q04",
+      "say": "The tabs split requests by where they stand: Open, Waiting on customer, and Done. The number on each tab is how many are in it.",
+      "shot": {
+        "continue": true,
+        "steps": [
+          { "click": "[data-tab=waiting]", "at": "Waiting" },
+          { "click": "[data-tab=done]", "at": "Done" },
+          { "click": "[data-tab=open]", "name": "tabs", "at": "number" }
+        ]
+      }
+    },
+    {
+      "id": "q05",
+      "say": "To find something, type a customer or a subject in the search box. The Priority chip narrows it further. Clear puts everything back.",
+      "shot": {
+        "continue": true,
+        "steps": [
+          { "into": "#q", "name": "search", "type": "Bluebird", "delay": 90, "at": "type" },
+          { "click": "#pri", "name": "pri", "at": "Priority" },
+          { "click": "[role=option]:has-text('Urgent')", "at": "narrows" },
+          { "click": "#clear", "name": "clear", "at": "Clear" }
+        ]
+      },
+      "callouts": [{ "mark": "search", "label": "Customer or subject", "at": "type", "until": "Priority", "side": "bottom", "dim": false }]
+    },
+    {
+      "id": "q06",
+      "chapter": "Open a request",
+      "say": "Click a request to open it on the right. At the top: the customer, when it came in, and its priority. Under that is what they wrote.",
+      "shot": {
+        "continue": true,
+        "steps": [
+          { "click": "tbody tr:has-text('Charged twice') .subj", "at": "Click" },
+          { "mark": "meta", "sel": "#panel dl", "at": "top" },
+          { "mark": "msg", "sel": "#panel .msg", "at": "wrote" }
+        ]
+      },
+      "callouts": [
+        { "mark": "meta", "label": "Who and when", "at": "top", "until": "wrote", "side": "left", "dim": false },
+        { "mark": "msg", "label": "What they asked", "at": "wrote", "side": "left", "dim": false }
+      ]
+    },
+    {
+      "id": "q07",
+      "say": "To take it on, or hand it to someone else, pick a name in Assigned to. The list shows the change straight away.",
+      "shot": {
+        "continue": true,
+        "steps": [{ "hover": "#assign", "name": "assign", "at": "Assigned" }]
+      },
+      "callouts": [{ "mark": "assign", "label": "Assigned to", "note": "Take it, or hand it on", "at": "Assigned", "side": "left", "dim": false }]
+    },
+    {
+      "id": "q08",
+      "chapter": "Reply",
+      "say": "Write your reply in the box at the bottom, and press Send reply. For five seconds you can press Undo, and nothing goes out. After that, the reply is sent, and the request moves to Waiting on customer.",
+      "lower": { "title": "5 seconds to undo", "text": "Then the reply is sent", "at": "five" },
+      "shot": {
+        "continue": true,
+        "steps": [
+          { "into": "#reply", "name": "reply", "type": "Sorry about that! I've refunded the second charge; you'll see it back on your card in 3 to 5 days.", "delay": 22, "at": "Write" },
+          { "click": "#send", "name": "send", "at": "Send" },
+          { "hover": "#undo", "name": "undo", "at": "Undo" },
+          { "wait": 5200 }
+        ]
+      },
+      "callouts": [{ "mark": "undo", "label": "Undo", "note": "Stops the reply for 5 seconds", "at": "Undo", "until": "After", "side": "top", "dim": false }]
+    },
+    {
+      "id": "q09",
+      "chapter": "Close it",
+      "say": "When a request is finished, open it and press Close request. You'll be asked to confirm, because a closed request can't be reopened, and the customer can't reply to it.",
+      "lower": { "title": "Closing can't be undone", "text": "The customer can't reply to a closed request", "at": "confirm" },
+      "shot": {
+        "continue": true,
+        "steps": [
+          { "click": "tbody tr:has-text('change our logo') .subj", "at": "open" },
+          { "click": "#close-request", "name": "close", "at": "Close" },
+          { "mark": "dialog", "sel": ".dialog", "at": "confirm" },
+          { "click": "#cancel", "at": "reply" }
+        ]
+      },
+      "callouts": [{ "mark": "dialog", "label": "Confirm to close", "at": "confirm", "side": "bottom" }]
+    },
+    {
+      "id": "q10",
+      "say": "That's Requests: work down the Open tab, reply with a few seconds to change your mind, and close what's done. The written guide under this video has every button, if you need to look something up.",
+      "shot": { "url": "/#/requests", "steps": [{ "move": "[data-tab=open]", "at": "Open" }] }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+node_modules/
+out/
+.env
+guides.config.json
+public/.stills/
+.DS_Store
+__pycache__/

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay Desk</title>
+<!-- A small fictional support app to film the example guide against. All data is made up and lives in memory:
+     reload the page and it starts fresh, so every take films the same screen. -->
+<style>
+  :root { --ink:#1f2330; --muted:#6b7080; --line:#e4e6ec; --bg:#f7f8fa; --accent:#4f46e5; --accent-soft:#eef0ff; --danger:#c2410c; --ok:#15803d; --r:10px; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 14px/20px Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:#fff; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  header { display:flex; align-items:center; gap:28px; height:56px; padding:0 24px; border-bottom:1px solid var(--line); }
+  .logo { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.2px; }
+  .logo i { width:26px; height:26px; border-radius:8px; background:var(--accent); display:inline-block; position:relative; }
+  .logo i::after { content:""; position:absolute; inset:7px 6px; border:2px solid #fff; border-radius:3px; border-top:none; }
+  nav { display:flex; gap:20px; color:var(--muted); }
+  nav a { color:inherit; text-decoration:none; padding:18px 0; border-bottom:2px solid transparent; }
+  nav a.on { color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
+  .me { margin-left:auto; display:flex; align-items:center; gap:10px; color:var(--muted); }
+  .me b { width:30px; height:30px; border-radius:50%; background:#dfe3ff; color:var(--accent); display:grid; place-items:center; font-size:12px; }
+  main { display:grid; grid-template-columns: 1fr; min-height: calc(100vh - 56px); }
+  main.with-panel { grid-template-columns: 1fr 440px; }
+  .list { padding:24px; min-width:0; }
+  h1 { margin:0 0 4px; font-size:22px; line-height:30px; }
+  .sub { color:var(--muted); font-size:13px; }
+  .tabs { display:flex; gap:22px; margin-top:18px; border-bottom:1px solid var(--line); }
+  .tabs button { background:none; border:0; padding:10px 0; color:var(--muted); border-bottom:2px solid transparent; display:flex; gap:8px; align-items:center; }
+  .tabs button.on { color:var(--ink); font-weight:600; border-bottom-color:var(--accent); }
+  .count { background:var(--bg); border-radius:999px; padding:0 8px; font-size:12px; color:var(--muted); }
+  .tabs button.on .count { background:var(--accent-soft); color:var(--accent); }
+  .bar { display:flex; gap:10px; margin:16px 0; align-items:center; }
+  .search { flex:0 0 320px; display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:var(--r); padding:8px 12px; }
+  .search input { border:0; outline:0; flex:1; }
+  .chip { position:relative; }
+  .chip > button { border:1px solid var(--line); background:#fff; border-radius:var(--r); padding:8px 12px; }
+  .chip > button.set { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+  .menu { position:absolute; top:44px; left:0; z-index:5; background:#fff; border:1px solid var(--line); border-radius:var(--r); box-shadow:0 10px 30px rgba(20,24,40,.12); padding:6px; min-width:200px; }
+  .menu button { display:block; width:100%; text-align:left; background:none; border:0; padding:8px 10px; border-radius:7px; }
+  .menu button:hover { background:var(--bg); }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:12px; color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); }
+  td { padding:12px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:var(--bg); }
+  tbody tr.open { background:var(--accent-soft); }
+  .subj b { display:block; font-weight:600; }
+  .subj span { color:var(--muted); font-size:13px; }
+  .pri { font-size:12px; padding:2px 8px; border-radius:999px; background:var(--bg); }
+  .pri.urgent { background:#fff1e8; color:var(--danger); }
+  .age.late { color:var(--danger); font-weight:600; }
+  .empty { padding:48px; text-align:center; color:var(--muted); }
+  aside { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .phead { padding:20px 22px 12px; border-bottom:1px solid var(--line); }
+  .phead h2 { margin:0; font-size:17px; line-height:24px; }
+  .x { float:right; background:none; border:0; font-size:20px; color:var(--muted); }
+  dl { display:grid; grid-template-columns:90px 1fr; gap:6px 10px; margin:12px 0 0; font-size:13px; }
+  dt { color:var(--muted); }
+  dd { margin:0; }
+  select { border:1px solid var(--line); border-radius:7px; padding:3px 6px; background:#fff; }
+  .thread { padding:18px 22px; flex:1; overflow:auto; }
+  .msg { background:var(--bg); border-radius:var(--r); padding:12px 14px; margin-bottom:12px; }
+  .msg.mine { background:var(--accent-soft); }
+  .msg small { display:block; color:var(--muted); margin-bottom:6px; }
+  .compose { border-top:1px solid var(--line); padding:14px 22px 18px; }
+  .compose textarea { width:100%; height:92px; border:1px solid var(--line); border-radius:var(--r); padding:10px 12px; resize:none; outline:0; }
+  .compose textarea:focus { border-color:var(--accent); }
+  .row { display:flex; gap:10px; margin-top:10px; align-items:center; }
+  .btn { border:1px solid var(--line); background:#fff; border-radius:var(--r); padding:8px 14px; }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); margin-left:auto; }
+  .btn.danger { color:var(--danger); }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--ink); color:#fff; border-radius:var(--r); padding:12px 16px; display:flex; gap:16px; align-items:center; box-shadow:0 10px 30px rgba(20,24,40,.25); }
+  .toast button { background:none; border:0; color:#c7ccff; font-weight:600; }
+  .scrim { position:fixed; inset:0; background:rgba(20,24,40,.35); display:grid; place-items:center; }
+  .dialog { background:#fff; border-radius:14px; padding:22px; width:420px; box-shadow:0 20px 50px rgba(20,24,40,.3); }
+  .dialog h3 { margin:0 0 8px; font-size:17px; }
+  .dialog p { margin:0; color:var(--muted); }
+  .dialog .row { justify-content:flex-end; margin-top:18px; }
+  .dialog .row .btn.primary { margin-left:0; background:var(--danger); border-color:var(--danger); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"><i></i>Relay Desk</div>
+  <nav><a href="#/requests" id="nav-requests" class="on">Requests</a><a href="#/customers" id="nav-customers">Customers</a></nav>
+  <div class="me">Sam Rivera <b>SR</b></div>
+</header>
+<main id="main"></main>
+<div id="layer"></div>
+<script>
+const people = ["Sam Rivera", "Priya Shah", "Leo Park", "Unassigned"];
+const now = Date.now();
+const H = 3600e3;
+let requests = [
+  { id: "r1", customer: "Northwind Bakery", contact: "Maria Lopez", subject: "Can't export last month's invoices", preview: "The export button spins and never finishes.", priority: "Urgent", status: "open", ageH: 30, assignee: "Unassigned", body: "Hi, the Export button on the Invoices page spins and never finishes. We need last month's invoices for our accountant by Friday." },
+  { id: "r2", customer: "Bluebird Clinics", contact: "Dev Patel", subject: "Add two new staff accounts", preview: "Two nurses start Monday and need logins.", priority: "Normal", status: "open", ageH: 5, assignee: "Priya Shah", body: "Two nurses start on Monday. Could you add accounts for them? Their emails are in the attached sheet." },
+  { id: "r3", customer: "Summit Outdoors", contact: "Kara Jensen", subject: "Charged twice in September", preview: "Our card shows two charges on Sep 3.", priority: "Urgent", status: "open", ageH: 52, assignee: "Sam Rivera", body: "Our card shows two identical charges on September 3. Can you refund one of them?" },
+  { id: "r4", customer: "Maple & Pine", contact: "Owen Blake", subject: "How do I change our logo?", preview: "We rebranded and want the new logo on emails.", priority: "Low", status: "open", ageH: 3, assignee: "Unassigned", body: "We rebranded last week. How do we put the new logo on the emails your app sends?" },
+  { id: "r5", customer: "Harbor Freightworks", contact: "Ada Kim", subject: "Report shows the wrong time zone", preview: "Times are an hour off since the change.", priority: "Normal", status: "waiting", ageH: 26, assignee: "Leo Park", body: "Since the clocks changed, every time in the weekly report is an hour off." },
+  { id: "r6", customer: "Northwind Bakery", contact: "Maria Lopez", subject: "Thanks for the quick fix", preview: "All working now, thank you!", priority: "Low", status: "done", ageH: 70, assignee: "Sam Rivera", body: "All working now. Thank you!" },
+  { id: "r7", customer: "Cedar Legal", contact: "Tom Reyes", subject: "Need a copy of our contract", preview: "Our auditors are asking for it.", priority: "Normal", status: "open", ageH: 18, assignee: "Unassigned", body: "Our auditors need a copy of our current contract. Can you send it over?" },
+  { id: "r8", customer: "Bluebird Clinics", contact: "Dev Patel", subject: "Password reset email never arrived", preview: "Checked spam too.", priority: "Urgent", status: "open", ageH: 1, assignee: "Leo Park", body: "I asked for a password reset twice this morning and the email never arrived. I checked spam too." },
+  { id: "r9", customer: "Summit Outdoors", contact: "Kara Jensen", subject: "Question about annual billing", preview: "Is there a discount for paying yearly?", priority: "Low", status: "waiting", ageH: 40, assignee: "Priya Shah", body: "Is there a discount if we switch to paying yearly?" },
+];
+const customers = [...new Set(requests.map((r) => r.customer))];
+const state = { tab: "open", q: "", pri: "", open: null, sent: {} };
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const age = (h) => (h < 24 ? `${h} h` : `${Math.floor(h / 24)} d`);
+const route = () => (location.hash.startsWith("#/customers") ? "customers" : "requests");
+
+function render() {
+  const main = document.getElementById("main");
+  document.getElementById("nav-requests").className = route() === "requests" ? "on" : "";
+  document.getElementById("nav-customers").className = route() === "customers" ? "on" : "";
+  if (route() === "customers") {
+    main.className = "";
+    main.innerHTML = `<section class="list"><h1>Customers</h1><p class="sub">${customers.length} customers</p>
+      <table style="margin-top:18px"><thead><tr><th>Customer</th><th>Open requests</th><th>Last request</th></tr></thead><tbody>
+      ${customers.map((c) => { const rs = requests.filter((r) => r.customer === c); return `<tr><td><b>${esc(c)}</b></td><td>${rs.filter((r) => r.status === "open").length}</td><td>${age(Math.min(...rs.map((r) => r.ageH)))} ago</td></tr>`; }).join("")}
+      </tbody></table></section>`;
+    return;
+  }
+  const counts = { open: 0, waiting: 0, done: 0 };
+  requests.forEach((r) => counts[r.status]++);
+  const rows = requests
+    .filter((r) => r.status === state.tab)
+    .filter((r) => !state.pri || r.priority === state.pri)
+    .filter((r) => !state.q || (r.customer + " " + r.subject).toLowerCase().includes(state.q.toLowerCase()))
+    .sort((a, b) => a.ageH - b.ageH);
+  const open = requests.find((r) => r.id === state.open);
+  main.className = open ? "with-panel" : "";
+  main.innerHTML = `
+  <section class="list">
+    <h1>Requests</h1>
+    <p class="sub">Replies go out from support@relaydesk.example. Requests older than 24 hours show in red.</p>
+    <div class="tabs" role="tablist">
+      ${[["open", "Open"], ["waiting", "Waiting on customer"], ["done", "Done"]].map(([k, l]) => `<button role="tab" data-tab="${k}" class="${state.tab === k ? "on" : ""}">${l} <span class="count">${counts[k]}</span></button>`).join("")}
+    </div>
+    <div class="bar">
+      <label class="search">⌕ <input id="q" placeholder="Search customer or subject" value="${esc(state.q)}"></label>
+      <div class="chip"><button id="pri" class="${state.pri ? "set" : ""}">Priority: ${state.pri || "any"} ▾</button></div>
+      ${state.pri || state.q ? `<button class="btn" id="clear">Clear</button>` : ""}
+    </div>
+    ${rows.length ? `<table><thead><tr><th>Customer</th><th>Request</th><th>Priority</th><th>Age</th><th>Assigned to</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr data-id="${r.id}" class="${r.id === state.open ? "open" : ""}"><td>${esc(r.customer)}</td><td class="subj"><b>${esc(r.subject)}</b><span>${esc(r.preview)}</span></td><td><span class="pri ${r.priority === "Urgent" ? "urgent" : ""}">${r.priority}</span></td><td class="age ${r.ageH > 24 && r.status === "open" ? "late" : ""}">${age(r.ageH)}</td><td>${esc(r.assignee)}</td></tr>`).join("")}
+    </tbody></table>` : `<p class="empty">No requests here.</p>`}
+  </section>
+  ${open ? panel(open) : ""}`;
+  wire();
+}
+
+function panel(r) {
+  const sent = state.sent[r.id] || [];
+  return `<aside id="panel">
+    <div class="phead"><button class="x" id="close-panel" aria-label="Close">×</button><h2>${esc(r.subject)}</h2>
+      <dl><dt>Customer</dt><dd>${esc(r.customer)} · ${esc(r.contact)}</dd><dt>Received</dt><dd>${age(r.ageH)} ago</dd><dt>Priority</dt><dd>${r.priority}</dd>
+      <dt>Assigned to</dt><dd><select id="assign">${people.map((p) => `<option ${p === r.assignee ? "selected" : ""}>${p}</option>`).join("")}</select></dd></dl></div>
+    <div class="thread"><div class="msg"><small>${esc(r.contact)} wrote</small>${esc(r.body)}</div>
+      ${sent.map((t) => `<div class="msg mine"><small>You replied</small>${esc(t)}</div>`).join("")}</div>
+    ${r.status === "done" ? "" : `<div class="compose"><textarea id="reply" placeholder="Write a reply to ${esc(r.contact)}…"></textarea>
+      <div class="row"><button class="btn danger" id="close-request">Close request</button><button class="btn primary" id="send">Send reply</button></div></div>`}
+  </aside>`;
+}
+
+function wire() {
+  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; state.open = null; render(); }));
+  const q = document.getElementById("q");
+  if (q) q.oninput = () => { state.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); };
+  const pri = document.getElementById("pri");
+  if (pri) pri.onclick = (e) => {
+    e.stopPropagation();
+    if (document.querySelector(".menu")) return document.querySelector(".menu").remove();
+    const m = document.createElement("div");
+    m.className = "menu";
+    m.setAttribute("role", "listbox");
+    m.innerHTML = ["any", "Urgent", "Normal", "Low"].map((p) => `<button role="option" data-p="${p}">${p === "any" ? "Any priority" : p}</button>`).join("");
+    pri.parentElement.append(m);
+    m.querySelectorAll("button").forEach((b) => (b.onclick = () => { state.pri = b.dataset.p === "any" ? "" : b.dataset.p; render(); }));
+  };
+  const clear = document.getElementById("clear");
+  if (clear) clear.onclick = () => { state.q = ""; state.pri = ""; render(); };
+  document.querySelectorAll("tbody tr[data-id]").forEach((tr) => (tr.onclick = () => { state.open = tr.dataset.id; render(); }));
+  const x = document.getElementById("close-panel");
+  if (x) x.onclick = () => { state.open = null; render(); };
+  const r = requests.find((q) => q.id === state.open);
+  const assign = document.getElementById("assign");
+  if (assign) assign.onchange = () => { r.assignee = assign.value; render(); };
+  const send = document.getElementById("send");
+  if (send) send.onclick = () => {
+    const text = document.getElementById("reply").value.trim();
+    if (!text) return;
+    let left = 5;
+    const layer = document.getElementById("layer");
+    const draw = () => (layer.innerHTML = `<div class="toast" id="toast">Sending your reply to ${esc(r.contact)}… <button id="undo">Undo · ${left}s</button></div>`);
+    draw();
+    const t = setInterval(() => {
+      left--;
+      if (left > 0) { draw(); wireUndo(); return; }
+      clearInterval(t);
+      (state.sent[r.id] = state.sent[r.id] || []).push(text);
+      r.status = "waiting";
+      layer.innerHTML = `<div class="toast">Reply sent. Moved to Waiting on customer.</div>`;
+      setTimeout(() => (layer.innerHTML = ""), 2500);
+      render();
+    }, 1000);
+    const wireUndo = () => (document.getElementById("undo").onclick = () => { clearInterval(t); layer.innerHTML = ""; });
+    wireUndo();
+  };
+  const closeReq = document.getElementById("close-request");
+  if (closeReq) closeReq.onclick = () => {
+    const layer = document.getElementById("layer");
+    layer.innerHTML = `<div class="scrim"><div class="dialog" role="dialog"><h3>Close this request?</h3><p>${esc(r.customer)} won't be able to reply to it, and it can't be reopened.</p>
+      <div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="confirm">Close request</button></div></div></div>`;
+    document.getElementById("cancel").onclick = () => (layer.innerHTML = "");
+    document.getElementById("confirm").onclick = () => { r.status = "done"; state.open = null; layer.innerHTML = ""; render(); };
+  };
+}
+
+document.addEventListener("click", () => document.querySelector(".menu")?.remove());
+addEventListener("hashchange", () => { const o = new URLSearchParams(location.hash.split("?")[1]).get("open"); if (o) state.open = o; render(); });
+const open = new URLSearchParams(location.hash.split("?")[1]).get("open");
+if (open) state.open = open;
+render();
+</script>
+</body>
+</html>

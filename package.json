@@ -1,0 +1,41 @@
+{
+  "name": "lej-ai-video-guides",
+  "private": true,
+  "description": "Narrated video guides and written guides for your web app, filmed on the live app, voiced with ElevenLabs, with motion graphics and a real edit in DaVinci Resolve Studio.",
+  "type": "module",
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "demo": "node scripts/demo-server.mjs",
+    "chrome": "node scripts/chrome.mjs",
+    "look": "node scripts/look.mjs",
+    "music": "node scripts/music.mjs",
+    "voice": "node scripts/voice.mjs",
+    "film": "node scripts/capture.mjs",
+    "graphics": "node scripts/graphics.mjs",
+    "cut": "python3 scripts/resolve_build.py",
+    "publish": "node scripts/publish.mjs",
+    "studio": "remotion studio src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.529",
+    "@remotion/cli": "^4.0.529",
+    "@remotion/google-fonts": "4.0.529",
+    "@remotion/renderer": "4.0.529",
+    "playwright-core": "^1.63.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.529"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": "github:justfinethanku/lej-ai-video-guides"
+}

@@ -1,0 +1,42 @@
+/* /guides: one section per page, the video in view and the written guide folded (a native <details>). */
+.gd-page { max-width: 1040px; }
+.gd-intro { margin-top: 8px; color: var(--muted); max-width: 640px; }
+.gd-toc { display: flex; gap: 20px; margin-top: 16px; font-size: 13px; }
+.gd-toc a { color: var(--green); }
+.gd-toc a:hover { text-decoration: underline; }
+
+.gd-guide { margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--line); scroll-margin-top: 16px; }
+.gd-title { font-size: 20px; line-height: 28px; font-weight: 600; letter-spacing: 0; }
+.gd-summary { margin-top: 4px; font-size: 14px; }
+.gd-guide .ui-muted { margin-top: 4px; }
+.gd-video { display: block; width: 100%; aspect-ratio: 16 / 9; margin-top: 16px; border: 1px solid var(--line); border-radius: var(--r-panel); background: #000; }
+.gd-pending { margin-top: 16px; padding: 48px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--r-panel); }
+
+.gd-written { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--r-panel); }
+.gd-written > summary { display: flex; align-items: center; gap: 8px; padding: 12px 16px; font-weight: 600; cursor: pointer; list-style: none; }
+.gd-written > summary::-webkit-details-marker { display: none; }
+.gd-written > summary::before { content: ""; width: 7px; height: 7px; border-right: 1.8px solid currentColor; border-bottom: 1.8px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s; margin-right: 2px; }
+.gd-written[open] > summary::before { transform: rotate(45deg); }
+.gd-written > summary:hover { background: var(--hover); border-radius: var(--r-panel); }
+
+/* The written guide itself: plain reading type, screenshots full width. */
+.gd-body { padding: 4px 24px 24px; font-size: 15px; line-height: 24px; max-width: 760px; }
+.gd-body h2 { margin-top: 28px; font-size: 17px; line-height: 24px; font-weight: 600; }
+.gd-body h3 { margin-top: 20px; font-size: 15px; line-height: 22px; font-weight: 600; }
+.gd-body p { margin-top: 10px; }
+.gd-body ol, .gd-body ul { margin-top: 10px; padding-left: 22px; }
+.gd-body ol { list-style: decimal; }
+.gd-body ul { list-style: disc; }
+.gd-body li { margin-top: 6px; }
+.gd-body strong { font-weight: 600; }
+.gd-body a { color: var(--green); text-decoration: underline; }
+.gd-body blockquote { margin-top: 12px; padding: 10px 14px; background: var(--chip); border-radius: var(--r); }
+.gd-body table { margin-top: 12px; border-collapse: collapse; width: 100%; font-size: 14px; }
+.gd-body th, .gd-body td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.gd-body th { font-weight: 600; color: var(--muted); font-size: 12px; }
+.gd-shot, .gd-loop { display: block; width: 100%; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); }
+
+@media (max-width: 700px) {
+  .gd-body { padding: 4px 16px 16px; }
+  .gd-toc { flex-wrap: wrap; gap: 12px; }
+}
