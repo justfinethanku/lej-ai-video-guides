@@ -68,7 +68,7 @@ export const Callout: React.FC<CalloutProps> = ({ box, label, note, side = "bott
           height: r.h,
           borderRadius: 14,
           border: `4px solid ${T.green}`,
-          boxShadow: "0 0 0 6px rgba(20,161,85,0.25)",
+          boxShadow: `0 0 0 6px color-mix(in srgb, ${T.green} 25%, transparent)`,
           opacity: o,
         }}
       />

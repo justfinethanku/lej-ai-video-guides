@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openSite, SITE, VIEW } from "./browser.mjs";
-import { media, script } from "./paths.mjs";
+import { CONFIG, media, script } from "./paths.mjs";
 
 const LEAD = 0.5; // seconds of picture before the narration starts
 const TAIL = 0.8; // and after it ends
@@ -32,7 +32,7 @@ const CURSOR = `
     Object.assign(c.style, { position: "fixed", left: "0", top: "0", zIndex: 2147483647, pointerEvents: "none", transform: "translate(-4px,-2px)", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.35))" });
     const r = document.createElement("div");
     r.id = "__gring";
-    Object.assign(r.style, { position: "fixed", width: "36px", height: "36px", marginLeft: "-18px", marginTop: "-18px", borderRadius: "50%", border: "3px solid #14a155", opacity: "0", zIndex: 2147483646, pointerEvents: "none" });
+    Object.assign(r.style, { position: "fixed", width: "36px", height: "36px", marginLeft: "-18px", marginTop: "-18px", borderRadius: "50%", border: "3px solid __ACCENT__", opacity: "0", zIndex: 2147483646, pointerEvents: "none" });
     document.documentElement.append(r, c);
     const p = JSON.parse(sessionStorage.getItem("__gpos") || '{"x":720,"y":420}');
     c.style.left = p.x + "px"; c.style.top = p.y + "px";
@@ -132,6 +132,8 @@ async function filmBeat(page, cdp, slug, beat, pos, fresh, prevUrl) {
     } else {
       if (at !== null) await until(at);
       if (step.press) await page.keyboard.press(step.press);
+      // Typing with no "into" types wherever the caret already is (after a click and a key like ControlOrMeta+End).
+      if (step.type) await page.keyboard.type(step.type, { delay: step.delay ?? 45 });
       if (step.scroll) {
         if (step.over) {
           const b = await page.locator(step.over).first().boundingBox();
@@ -142,6 +144,11 @@ async function filmBeat(page, cdp, slug, beat, pos, fresh, prevUrl) {
           await page.mouse.wheel(0, step.scroll / n);
           await page.waitForTimeout(16);
         }
+      }
+      if (step.top) {
+        // Jump an element to the top of the view (offset px below the edge). Instant, so it belongs in "prep".
+        await page.locator(step.top).first().evaluate((el, off) => { el.scrollIntoView({ block: "start" }); window.scrollBy(0, -off); }, step.offset ?? 16);
+        await page.waitForTimeout(150);
       }
       if (step.wait) await page.waitForTimeout(step.wait);
       if (step.waitFor) await page.locator(step.waitFor).first().waitFor({ state: "visible", timeout: step.timeout ?? 60000 });
@@ -207,7 +214,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const [slug, ...only] = process.argv.slice(2);
   const guide = script(slug);
   const { browser, context, page } = await openSite();
-  await context.addInitScript(CURSOR);
+  await context.addInitScript(CURSOR.replace("__ACCENT__", CONFIG.brand?.accent ?? "#14a155"));
+  // So Copy buttons work while filming, as they do for a person.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(SITE).origin }).catch(() => {});
   const cdp = await context.newCDPSession(page);
   const pos = { x: 720, y: 420 };
   let failed = false;

@@ -80,6 +80,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         const composition = await selectComposition({ serveUrl, id: "Flow", inputProps: { ...props, still: true } });
         await renderStill({ serveUrl, composition, inputProps: { ...props, still: true }, output: media(slug, "stills", `${beat.id}-flow.png`), frame: 0, logLevel: "error" });
       }
+      if (!props) {
+        // Any other composition registered in src/Root.tsx: its props from the script, plus the frame of each cue word.
+        const cues = (beat.graphic.cues ?? []).map((w) => Math.round((LEAD + atSeconds(w, vo.words)) * FPS));
+        props = { ...(beat.graphic.props ?? {}), cues, frames };
+      }
       const out = media(slug, "graphics", `${beat.id}-${beat.graphic.kind}.mov`);
       await render(beat.graphic.kind, props, out, false);
       entry.graphic = out;

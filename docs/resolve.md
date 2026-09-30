@@ -44,6 +44,10 @@ it), exports the cut as DRT, FCPXML 1.10, OTIO and EDL to `<media>/<page>/timeli
 - **Fusion keyframes**: `tool.AddModifier("Blend", "BezierSpline")` (or `"XYPath"` for points), then
   `tool.SetInput(name, value, frame)`. Comp frame 0 is the start of the clip's source range.
 - **Checking a frame without watching:** `project.ExportCurrentFrameAsStill(path)` after `timeline.SetCurrentTimecode`.
+- **Resolve only sees fonts installed on the machine.** A web font in `brand.font` (loaded by Remotion from Google
+  Fonts) makes the render fail at the first title with "The Fusion composition at … could not be processed
+  successfully" (read it with `project.GetRenderJobStatus(job)`). Install the font, or set `brand.titleFont` to an
+  installed one (Inter ships with macOS); the graphics keep `brand.font`.
 
 ## Editing by hand
 

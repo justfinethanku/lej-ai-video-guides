@@ -44,7 +44,9 @@ TAIL = 0.8
 MUSIC = os.path.join(MEDIA, CONFIG["music"]["file"]) if CONFIG.get("music") else None
 MUSIC_DB = float(CONFIG.get("music", {}).get("db", -24))
 VOICE_DB = float(CONFIG["resolve"].get("voiceDb", -2))  # a mono take on a stereo track plays ~3 dB hot
-FONT = CONFIG.get("brand", {}).get("font", "Inter")
+# brand.titleFont: the font for Resolve's Text+ titles when brand.font is a web font Resolve can't see (Resolve only
+# sees fonts installed on the machine; a missing one fails the render at the first title).
+FONT = CONFIG.get("brand", {}).get("titleFont") or CONFIG.get("brand", {}).get("font", "Inter")
 
 
 def _rgb(hex_color, fallback):

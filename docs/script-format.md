@@ -23,6 +23,9 @@ Every beat has an `id` (unique, short: `m01`, `f11r`) and `say` (the narration).
 - `"graphic": {"kind": "TitleCard"}`: the opening card (product, page, summary, chapters, as-of date).
 - `"graphic": {"kind": "Flow", "props": {"heading": "...", "steps": [{"title": "...", "text": "..."}]}, "cues": ["word", ...]}`:
   a diagram whose steps appear as the narration says each cue word.
+- `"graphic": {"kind": "<Composition>", "props": {...}, "cues": ["word", ...]}`: any other Remotion composition you
+  register in `src/Root.tsx` (a mock of another app, a terminal, a closing card). It gets the script's `props`, plus
+  `cues` (the frame each cue word is said) and `frames` (the beat's length), so it can time itself to the voice.
 - `"shot": {...}`: the live app, filmed in time with the narration.
 
 Optional on any beat:
@@ -56,10 +59,12 @@ recorded box for callouts and zooms, defaulting to the selector):
 | `{"click": sel}` | glides the cursor there (arriving on the word) and clicks |
 | `{"hover": sel}` / `{"move": sel}` | glides there and rests (hover states show) |
 | `{"into": sel, "type": "text", "delay": 45}` | clicks the field and types |
+| `{"type": "text"}` | types wherever the caret already is (click the field, `{"press": "ControlOrMeta+End"}`, then type to add to the end) |
 | `{"press": "Escape"}` | a key; `ControlOrMeta+A` works |
 | `{"scroll": 600, "over": sel}` | a smooth wheel scroll over an element |
 | `{"wait": ms}` / `{"waitFor": sel}` / `{"waitGone": sel}` | wait for time, for something to appear, or to go away |
 | `{"goto": "/path"}` | navigate |
+| `{"top": sel, "offset": 16}` | jumps an element to the top of the view, `offset` px below the edge; instant, so use it in `prep` |
 | `{"mark": "name", "sel": sel}` | record an element's box without moving the cursor |
 | `{"still": "name", "sel": sel, "pad": 16}` | a PNG of the page (or of one element) |
 
