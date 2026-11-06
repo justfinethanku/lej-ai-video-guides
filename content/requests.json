@@ -66,7 +66,7 @@
         "steps": [
           { "into": "#q", "name": "search", "type": "Bluebird", "delay": 90, "at": "type" },
           { "click": "#pri", "name": "pri", "at": "Priority" },
-          { "click": "[role=option]:has-text('Urgent')", "at": "narrows" },
+          { "click": "[data-p=Urgent]", "at": "narrows" },
           { "click": "#clear", "name": "clear", "at": "Clear" }
         ]
       },

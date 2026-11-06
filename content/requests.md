@@ -8,18 +8,18 @@ Requests opens on **Open**. Each row is one request: the customer, what they ask
 
 ![The list](loop:q03)
 
-- An age in **red** means the request is more than a day old.
-- The tabs split requests by where they stand: **Open**, **Waiting on customer** and **Done**. Each tab shows how many it holds.
+- **Overdue** marks requests more than a day old.
+- The tabs split requests by where they stand: **Open**, **Waiting on customer** and **Done**. Each tab shows how many it holds. Use Left and Right Arrow to switch tabs from the keyboard.
 - Type a customer or a subject in **Search customer or subject** to find one. Search looks at those two only.
 - **Priority** narrows the list to Urgent, Normal or Low. **Clear** removes the search and the priority.
 
 ## Open a request
 
-Click a row. The request opens on the right: the customer and who wrote, when it came in, its priority, who it's assigned to, and what they wrote.
+Click a row, or use Tab to reach its subject and press Enter or Space. The request opens beside the list (below it on narrow screens): the customer and who wrote, when it came in, its priority, who it's assigned to, and what they wrote.
 
 ![A request, open](shot:q06)
 
-To take it on, or hand it to someone else, pick a name in **Assigned to**. The list updates straight away. Press **×** to close the panel.
+To take it on, or hand it to someone else, pick a name in **Assigned to**. The list updates straight away and keeps any reply draft. Press **×** to close the panel and return focus to the request.
 
 ## Reply
 
@@ -34,7 +34,7 @@ To take it on, or hand it to someone else, pick a name in **Assigned to**. The l
 
 ## Close a request
 
-When a request is finished, open it and press **Close request**, then **Close request** again to confirm. It moves to **Done**.
+When a request is finished, open it and press **Close request**, then **Close request** again to confirm. **Cancel** or Escape dismisses the confirmation. It moves to **Done**.
 
 ![Confirming a close](shot:q09)
 

@@ -17,7 +17,7 @@ function pictures(signed: Record<string, string>): Components {
       const url = assetUrl(typeof src === "string" ? src : "", signed);
       if (!url) return null;
       if (isVideo(url)) {
-        return <video className="gd-loop" src={url} autoPlay muted loop playsInline aria-label={alt || undefined} />;
+        return <video className="gd-loop" src={url} controls muted loop playsInline preload="none" aria-label={alt || "Guide demonstration"} />;
       }
       return <img className="gd-shot" src={url} alt={alt || ""} loading="lazy" />;
     },
@@ -61,13 +61,13 @@ export default async function GuidesPage() {
               {length ? ` · ${length}` : ""}
             </p>
             {guide.video ? (
-              <video className="gd-video" src={guide.video} poster={guide.poster ?? undefined} controls preload="metadata" playsInline />
+              <video className="gd-video" src={guide.video} poster={guide.poster ?? undefined} aria-label={`${guide.title} video guide`} controls preload="metadata" playsInline />
             ) : (
               <p className="gd-pending">The video for this page is being made.</p>
             )}
             {guide.body_md ? (
               <details className="gd-written">
-                <summary>Written guide</summary>
+                <summary>Written guide<span className="gd-sr-only">: {guide.title}</span></summary>
                 <div className="gd-body">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={pictures(guide.assets)} urlTransform={keepAssets}>
                     {guide.body_md}
