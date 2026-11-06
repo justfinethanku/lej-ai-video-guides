@@ -21,19 +21,20 @@ first. Propose the page list and the chapter list for each guide yourself and le
 ## Steps
 1. **Set up the kit.** Clone this repo (or copy it into your project as `guides-studio/`: scripts belong in git, media does not).
    Copy `guides.config.example.json` to `guides.config.json` and fill in: product name, site URL, how to sign in
-   (`session.from: "chrome"` borrows a signed-in Chrome profile opened with `pnpm chrome`; `"none"` for public pages; `serveDir` films a static folder with no server),
+   (`session.from: "chrome"` borrows a signed-in Chrome profile opened with `pnpm run chrome`; `"none"` for public pages; `serveDir` films a static folder with no server),
    production media folder (outside git), ElevenLabs voice id and model, brand colours, font and logo files (put the
    images in `public/`), music bed file, Resolve project name, and where to publish (`"supabase"` or
    `"folder"`). Run `pnpm install`. If the kit lives inside your app's repo, exclude its folder from the app's build (tsconfig
    `exclude`, `.vercelignore` or equivalent).
    Tools needed on the machine: ffmpeg, Playwright Chromium, DaVinci Resolve Studio with Preferences > System > General
-   > External scripting set to Local, and the ElevenLabs key in `.env`. `pnpm doctor` checks all of it.
+   > External scripting set to Local, and the ElevenLabs key in the process environment (an existing `.env` is also read). Use
+   [the setup checks](setup.md) before generation; `pnpm run doctor` does not launch a browser or render a video.
 
 2. **Map each page from its code.** For each page, read every file behind it and return: every
    screen and URL parameter; every control top to bottom with its exact on-screen label and what it does, including
    side effects (writes data, sends, calls AI, costs money, can't be undone); every status and empty state; the
    end-to-end task flow; what a user needs to know to use it safely; and anything unfinished or dev-only. Quote
-   UI strings with file:line. Then look at the live page (`pnpm look /path`) to see what the data makes of
+   UI strings with file:line. Then look at the live page (`pnpm run look /path`) to see what the data makes of
    the layout.
 
 3. **Write the script** in `content/<page>.json` (format: [script-format.md](script-format.md)). Open with a title card and a
@@ -42,22 +43,22 @@ first. Propose the page list and the chapter list for each guide yourself and le
    third states a rule worth remembering ("8 seconds to undo"). Say what is irreversible and what costs money, in the
    beat where the viewer would press it.
 
-4. **Voice it.** `pnpm voice <page>`. One WAV per beat with word timings, levelled to −16 LUFS; beats
+4. **Voice it.** `pnpm run voice <page>`. One WAV per beat with word timings, levelled to −16 LUFS; beats
    with a nonempty WAV and unchanged text, spoken neighbours and voice/loudness settings are skipped. Older cache
    hashes are refreshed once on the next voice run. Failed conversion leaves the last successful take in place.
    Spot-check pronunciation of names and acronyms by transcribing a take with
-   ElevenLabs speech-to-text. Generate the music bed once per product (`pnpm music`) and listen to it once.
+   ElevenLabs speech-to-text. Generate the music bed once per product (`pnpm run music`) and listen to it once.
 
-5. **Film it.** `pnpm film <page>`. A headless browser at 2× films each beat on the live app in time
+5. **Film it.** `pnpm run film <page>`. A headless browser at 2× films each beat on the live app in time
    with its voice, with a drawn cursor, and records the box of every element the script points at. Read a frame from
    each take (`ffmpeg -ss <t> -i take.mp4 -frames:v 1`) and refilm any beat whose selector missed or whose page was
    still loading (put waits and warm-ups in the beat's `prep`, which runs before filming starts).
 
-6. **Draw the graphics.** `pnpm graphics <page>`. Remotion renders the title card, flow diagrams and every
+6. **Draw the graphics.** `pnpm run graphics <page>`. Remotion renders the title card, flow diagrams and every
    callout (ProRes 4444 with transparency) in the brand's look, timed from the voice and placed from the recorded
    boxes.
 
-7. **Cut it in Resolve.** `pnpm cut <page> <version>`. Builds the timeline, adds Text+ lower
+7. **Cut it in Resolve.** `pnpm run cut <page> <version>`. Builds the timeline, adds Text+ lower
    thirds and chapter titles, chapter markers, zooms, voice and music, renders H.264 1080p, exports the project
    (`.drp`) and the cut (DRT, FCPXML, OTIO, EDL), and appends to the page's `EDIT-LOG.md`. How it works and the traps: [resolve.md](resolve.md).
 
@@ -66,7 +67,7 @@ first. Propose the page list and the chapter list for each guide yourself and le
    about. Illustrate with `![alt](shot:<beat>)` (a still from the finished video with its callout) and
    `![alt](loop:<beat>)` (that beat as a silent looping clip).
 
-9. **Publish.** `pnpm publish <page> <version>`. Cuts the stills and clips from the render and publishes
+9. **Publish.** `pnpm run publish <page> <version>`. Cuts the stills and clips from the render and publishes
    the video, poster, pictures and written guide ([publishing.md](publishing.md), including a ready Guides page for
    Next.js + Supabase in `site-example/`).
 

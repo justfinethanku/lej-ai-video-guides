@@ -1,4 +1,4 @@
-// Checks everything the kit needs and says what to do about anything missing. pnpm doctor
+// Checks everything the kit needs and says what to do about anything missing. pnpm run doctor
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -43,7 +43,7 @@ await check("guides.config.json", () => `${CONFIG.product} · ${CONFIG.site}`);
 await check("ElevenLabs key", async () => {
   const name = CONFIG.voice?.keyEnv ?? "ELEVENLABS_API_KEY";
   const key = process.env[name];
-  if (!key) throw new Error(`Set ${name} in .env (next to guides.config.json). Get a key at elevenlabs.io/app/settings/api-keys.`);
+  if (!key) throw new Error(`Provide ${name} in the process environment or an existing .env next to guides.config.json. Get a key at elevenlabs.io/app/settings/api-keys.`);
   const res = await fetch(`https://api.elevenlabs.io/v1/voices/${CONFIG.voice.id}`, { headers: { "xi-api-key": key } });
   if (res.status === 401) throw new Error("ElevenLabs rejected the key. Check it, and that it can use Text to Speech and Voices.");
   if (!res.ok) throw new Error(`Voice ${CONFIG.voice.id}: ${res.status}. Check voice.id in the config.`);
@@ -56,7 +56,7 @@ await check("Media folder", () => {
 await check("Music bed", () => {
   if (!CONFIG.music) return "none (config has no music)";
   const f = join(MEDIA, CONFIG.music.file);
-  if (!existsSync(f)) throw new Error(`${f} not found. Run: pnpm music (or put your own track there).`);
+  if (!existsSync(f)) throw new Error(`${f} not found. Run: pnpm run music (or put your own track there).`);
   return CONFIG.music.file;
 });
 await check("DaVinci Resolve Studio scripting", () => {
@@ -84,5 +84,5 @@ if ((CONFIG.session?.from ?? "none") === "chrome") {
 
 for (const [ok, name, detail] of results) console.log(`${ok ? "✓" : "✗"} ${name}${detail ? `  ${detail}` : ""}`);
 const failed = results.filter((r) => !r[0]).length;
-console.log(failed ? `\n${failed} to fix. Fix the ✗ lines, then run pnpm doctor again.` : "\nReady. Next: pnpm voice <page>");
+console.log(failed ? `\n${failed} to fix. Fix the ✗ lines, then run pnpm run doctor again.` : "\nReady. Next: pnpm run voice <page>");
 process.exit(failed ? 1 : 0);
