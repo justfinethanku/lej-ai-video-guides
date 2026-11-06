@@ -43,7 +43,9 @@ first. Propose the page list and the chapter list for each guide yourself and le
    beat where the viewer would press it.
 
 4. **Voice it.** `pnpm voice <page>`. One WAV per beat with word timings, levelled to −16 LUFS; beats
-   whose text is unchanged are skipped. Spot-check pronunciation of names and acronyms by transcribing a take with
+   with a nonempty WAV and unchanged text, spoken neighbours and voice/loudness settings are skipped. Older cache
+   hashes are refreshed once on the next voice run. Failed conversion leaves the last successful take in place.
+   Spot-check pronunciation of names and acronyms by transcribing a take with
    ElevenLabs speech-to-text. Generate the music bed once per product (`pnpm music`) and listen to it once.
 
 5. **Film it.** `pnpm film <page>`. A headless browser at 2× films each beat on the live app in time

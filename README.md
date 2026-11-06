@@ -13,9 +13,9 @@ For each page of your app you get:
 - **A real edit** in DaVinci Resolve Studio: one timeline per page per version, with every title, callout and clip on
   its own track, exported as DRT, FCPXML, OTIO and EDL so you can finish it in Resolve, Final Cut Pro or Premiere Pro.
 
-The whole thing is driven by one script file per page. Change a line, and only that line is re-voiced; refilm one
-beat, and only that beat is refilmed; rebuild, and the edit, the render, the written guide's pictures and the
-published page all follow.
+The whole thing is driven by one script file per page. Change a line, and that line and its spoken neighbours are
+re-voiced; refilm one beat, and only that beat is refilmed; rebuild, and the edit, the render, the written guide's
+pictures and the published page all follow.
 
 The how-to, with videos: **[limitededitionjonathan.com/ai-video-guides](https://limitededitionjonathan.com/ai-video-guides)**.
 Step-by-step setup: **[limitededitionjonathan.com/connect/ai-video-guides-install](https://limitededitionjonathan.com/connect/ai-video-guides-install)**.
@@ -92,7 +92,7 @@ the Resolve project as history.
 | Step | Tool | What happens |
 | --- | --- | --- |
 | Script | `content/<page>.json` | Beats: what is said, what is shown, which words trigger which clicks, callouts, lower thirds and chapters. |
-| Voice | ElevenLabs Eleven v4 | One WAV per beat with word timings, levelled to −16 LUFS. Unchanged lines are skipped. |
+| Voice | ElevenLabs Eleven v4 | One WAV per beat with word timings, levelled to −16 LUFS. Complete takes with unchanged text, context and settings are skipped. |
 | Film | Playwright + Chromium | A headless browser at 2× films each beat on the live app, arriving on each control as its name is spoken, and records every element's box. |
 | Graphics | Remotion | Title card, flow diagrams and callouts (ProRes 4444 with transparency) in your brand, placed from the recorded boxes. |
 | Edit | DaVinci Resolve Studio | V1 picture, V2–V3 callouts, V4 Text+ lower thirds and chapter titles, A1 voice, A2 music, chapter markers, zooms; renders H.264, exports DRT/FCPXML/OTIO/EDL and the project. |
