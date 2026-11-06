@@ -17,8 +17,8 @@ import { join } from "node:path";
 import { openSite, SITE, VIEW } from "./browser.mjs";
 import { CONFIG, media, script } from "./paths.mjs";
 
-const LEAD = 0.5; // seconds of picture before the narration starts
-const TAIL = 0.8; // and after it ends
+import { atSeconds, LEAD, TAIL } from "./timing.mjs";
+export { atSeconds } from "./timing.mjs";
 const K = 1920 / VIEW.width; // CSS px -> 1080p frame px
 
 // A drawn pointer that follows the real mouse, since screen capture does not include the system cursor.
@@ -51,21 +51,6 @@ const CURSOR = `
   }, true);
   if (document.readyState !== "loading") install(); else addEventListener("DOMContentLoaded", install);
 })();`;
-
-const norm = (w) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
-
-/** Seconds into the narration for a step's `at`: a number, a word, or the nth time a word is said ("add#2"). */
-export function atSeconds(at, words) {
-  if (at === undefined || at === null) return null;
-  if (typeof at === "number") return at;
-  const [w, nth] = String(at).split("#");
-  const want = norm(w);
-  let seen = 0;
-  for (const word of words) {
-    if (norm(word.text) === want && ++seen === Number(nth || 1)) return word.start;
-  }
-  throw new Error(`"${at}" is not said in this beat`);
-}
 
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 

@@ -7,23 +7,14 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
-import { atSeconds } from "./capture.mjs";
+import { atSeconds, calloutSpan, LEAD, TAIL } from "./timing.mjs";
+export { calloutSpan, LEAD, TAIL } from "./timing.mjs";
 import { FPS, MEDIA, media, script, STUDIO } from "./paths.mjs";
-
-export const LEAD = 0.5;
-export const TAIL = 0.8;
 
 const read = (p) => JSON.parse(readFileSync(p, "utf8"));
 // A path in a script: absolute, ~/…, or relative to the media folder.
 const mediaPath = (p) => (p.startsWith("~/") ? join(process.env.HOME, p.slice(2)) : isAbsolute(p) ? p : join(MEDIA, p));
 const asOf = (d) => `As of ${new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`;
-
-/** Seconds from the start of a beat's clip at which a callout shows and hides. */
-export function calloutSpan(c, words, beatSeconds) {
-  const start = Math.max(0, LEAD + atSeconds(c.at, words) - 0.15);
-  const end = c.until ? LEAD + atSeconds(c.until, words) - 0.05 : beatSeconds - 0.25;
-  return { start: +start.toFixed(3), end: +Math.max(start + 0.8, end).toFixed(3) };
-}
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [slug, ...only] = process.argv.slice(2);

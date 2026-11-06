@@ -11,6 +11,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG, CONTENT, media, script, STUDIO } from "./paths.mjs";
+import { stillTime } from "./publish-plan.mjs";
 
 const P = CONFIG.publish ?? { type: "folder" };
 const SUPABASE = P.type === "supabase";
@@ -100,7 +101,12 @@ const [slug, v] = process.argv.slice(2);
 const version = Number(v);
 const guide = script(slug);
 const plan = JSON.parse(readFileSync(media(slug, "renders", `${slug}-guide-v${version}.plan.json`), "utf8"));
-const manifest = JSON.parse(readFileSync(media(slug, "graphics", "manifest.json"), "utf8"));
+// New plans carry the graphics metadata for this cut. Only older plans need the mutable manifest.
+let manifest;
+if (plan.beats.some((beat) => !beat.publish)) {
+  console.warn("Legacy edit plan: still selection uses the current graphics manifest. Rebuild the cut with a new version to snapshot its metadata.");
+  manifest = JSON.parse(readFileSync(media(slug, "graphics", "manifest.json"), "utf8"));
+}
 const render = media(slug, "renders", `${slug}-guide-v${version}.mp4`);
 const beatAt = Object.fromEntries(plan.beats.map((b) => [b.id, b]));
 const dir = `${slug}/v${version}`;
@@ -115,8 +121,7 @@ for (const { kind, beat } of refs) {
   if (kind === "shot") {
     // A graphic (title card, flow diagram) is fully drawn just before its fade-out; a screen beat is shown where its
     // first callout is up, else 60% of the way in.
-    const o = manifest[beat]?.overlays?.[0];
-    const t = b.start + (manifest[beat]?.graphic ? Math.max(0, b.length - 0.7) : o ? Math.min(o.start + 1.2, (o.start + o.end) / 2) : b.length * 0.6);
+    const t = stillTime(b, b.publish ?? manifest?.[beat] ?? {});
     const file = out(`${beat}-shot.jpg`);
     ff("-ss", t.toFixed(2), "-i", render, "-frames:v", "1", "-vf", "scale=1600:-2", "-q:v", "3", file);
     await upload(`${dir}/${beat}-shot.jpg`, file, "image/jpeg");

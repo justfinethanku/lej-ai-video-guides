@@ -23,6 +23,8 @@ import sys
 import time
 from datetime import datetime
 
+from edit_plan import FPS, plan, publication_plan, read
+
 # Where Resolve Studio keeps its scripting module on macOS, Windows and Linux.
 sys.path.append("/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting/Modules")
 sys.path.append(os.path.expandvars(r"%PROGRAMDATA%\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting\Modules"))
@@ -38,9 +40,6 @@ with open(os.path.join(STUDIO, "guides.config.json")) as _f:
     CONFIG = json.load(_f)
 MEDIA = os.path.expanduser(os.environ.get("GUIDES_MEDIA", CONFIG["media"]))
 PROJECT = CONFIG["resolve"]["project"]
-FPS = 30
-LEAD = 0.5  # seconds of picture before each beat's narration (capture.mjs, graphics.mjs)
-TAIL = 0.8
 MUSIC = os.path.join(MEDIA, CONFIG["music"]["file"]) if CONFIG.get("music") else None
 MUSIC_DB = float(CONFIG.get("music", {}).get("db", -24))
 VOICE_DB = float(CONFIG["resolve"].get("voiceDb", -2))  # a mono take on a stereo track plays ~3 dB hot
@@ -55,74 +54,6 @@ def _rgb(hex_color, fallback):
 
 
 PLATE = _rgb(CONFIG.get("brand", {}).get("text"), "#333333")  # lower-third plate: the brand's text colour
-LOWER_SECONDS = 4.5
-
-
-def read(path):
-    with open(path) as f:
-        return json.load(f)
-
-
-def word_time(at, words):
-    """Seconds into a take at which `at` ("word", "word#2" or a number) is said; mirrors atSeconds in capture.mjs."""
-    if isinstance(at, (int, float)):
-        return float(at)
-    w, _, nth = str(at).partition("#")
-    want = "".join(ch for ch in w.lower() if ch.isalnum() or ch == "'")
-    seen = 0
-    for word in words:
-        if "".join(ch for ch in word["text"].lower() if ch.isalnum() or ch == "'") == want:
-            seen += 1
-            if seen == int(nth or 1):
-                return word["start"]
-    raise ValueError(f'"{at}" is not said in this beat')
-
-
-def plan(slug):
-    """Where every piece goes, in seconds from the start of the video."""
-    guide = read(os.path.join(STUDIO, "content", f"{slug}.json"))
-    manifest = read(os.path.join(MEDIA, slug, "graphics", "manifest.json"))
-    chapters = guide["chapters"]
-    t = 0.0
-    beats, overlays, titles, markers = [], [], [], []
-    chapter_no = 0
-    for beat in guide["beats"]:
-        vo = read(os.path.join(MEDIA, slug, "vo", f"{beat['id']}.json"))
-        entry = manifest[beat["id"]]
-        media_from = 0.0
-        if beat.get("media"):
-            picture = entry["media"]["file"]
-            media_from = float(entry["media"].get("from", 0))
-            length = entry["seconds"]
-        elif beat.get("graphic"):
-            picture = entry["graphic"]
-            length = entry["seconds"]
-        else:
-            cap = read(os.path.join(MEDIA, slug, "capture", f"{beat['id']}.json"))
-            picture = os.path.join(MEDIA, slug, "capture", f"{beat['id']}.mp4")
-            # The take runs a touch past the narration's tail; never ask for more frames than the file has.
-            length = int(cap["seconds"] * FPS) / FPS
-        # Whole frames, so each clip butts against the next with no gap.
-        length = round(length * FPS) / FPS
-        zooms = []
-        for z in beat.get("zoom", []):
-            box = cap["marks"][z["mark"]]
-            zs = LEAD + word_time(z["at"], vo["words"])
-            ze = LEAD + word_time(z["until"], vo["words"]) if z.get("until") else length - 0.3
-            zooms.append({"x": (box["x"] + box["w"] / 2) / 1920, "y": 1 - (box["y"] + box["h"] / 2) / 1080, "scale": z.get("scale", 1.5), "start": zs, "end": ze})
-        beats.append({"id": beat["id"], "picture": picture, "from": media_from, "start": t, "length": length, "zooms": zooms, "vo": os.path.join(MEDIA, slug, "vo", f"{beat['id']}.wav"), "vo_start": t + LEAD, "vo_seconds": vo["seconds"]})
-        for o in entry["overlays"]:
-            overlays.append({"file": o["file"], "start": t + o["start"], "length": o["end"] - o["start"], "label": o["label"]})
-        if beat.get("chapter"):
-            chapter_no += 1
-            titles.append({"title": beat["chapter"], "text": f"Part {chapter_no} of {len(chapters)}", "start": t + 0.3, "length": min(LOWER_SECONDS, length - 0.4)})
-            markers.append({"at": t, "name": beat["chapter"], "note": f"Part {chapter_no} of {len(chapters)} · beat {beat['id']}"})
-        if beat.get("lower"):
-            lo = beat["lower"]
-            start = t + LEAD + (word_time(lo["at"], vo["words"]) if lo.get("at") is not None else 0) - 0.2
-            titles.append({"title": lo["title"], "text": lo.get("text", ""), "start": start, "length": min(LOWER_SECONDS, t + length - start - 0.2)})
-        t += length
-    return guide, {"beats": beats, "overlays": overlays, "titles": titles, "markers": markers, "seconds": t}
 
 
 def lower_third(comp, title_text, sub_text, frames):
@@ -265,7 +196,7 @@ def main():
     if "--export-only" in sys.argv:
         return export_only(slug, version)
     render = "--no-render" not in sys.argv
-    guide, p = plan(slug)
+    guide, p = plan(slug, STUDIO, MEDIA)
     resolve = dvr.scriptapp("Resolve")
     if not resolve:
         sys.exit("Resolve is not reachable. Open it and turn on Preferences > System > General > External scripting: Local.")
@@ -377,10 +308,10 @@ def main():
         log.append(f"- Render: renders/{slug}-guide-v{version}.mp4 · {status.get('JobStatus')} in {status.get('TimeTakenToRenderInMs', 0) / 1000:.0f} s")
 
     log.append("- Timeline exports: " + ", ".join(export_timeline(resolve, tl, slug, version)))
-    # Where each beat sits in the video: loops.mjs cuts the written guide's motion clips from the render with it.
+    # Save the cut and its graphics metadata together: publish.mjs may run after newer graphics exist.
     os.makedirs(os.path.join(MEDIA, slug, "renders"), exist_ok=True)
     with open(os.path.join(MEDIA, slug, "renders", f"{slug}-guide-v{version}.plan.json"), "w") as f:
-        json.dump({"version": version, "timeline": name, "seconds": p["seconds"], "beats": [{"id": b["id"], "start": b["start"], "length": b["length"]} for b in p["beats"]]}, f, indent=2)
+        json.dump(publication_plan(p, version, name), f, indent=2)
     os.makedirs(os.path.join(MEDIA, "resolve"), exist_ok=True)
     pm.SaveProject()
     drp = os.path.join(MEDIA, "resolve", f"{PROJECT} {datetime.now().strftime('%Y-%m-%d %H%M')}.drp")

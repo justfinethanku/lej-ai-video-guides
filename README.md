@@ -98,6 +98,8 @@ the Resolve project as history.
 | Edit | DaVinci Resolve Studio | V1 picture, V2–V3 callouts, V4 Text+ lower thirds and chapter titles, A1 voice, A2 music, chapter markers, zooms; renders H.264, exports DRT/FCPXML/OTIO/EDL and the project. |
 | Publish | ffmpeg + your site | Stills and loops for the written guide cut from the render; video and guide published. |
 
+Pipeline boundaries and file contracts: [docs/architecture.md](docs/architecture.md).
+
 More: [docs/resolve.md](docs/resolve.md) (the edit, and the Resolve API traps it works around),
 [docs/publishing.md](docs/publishing.md), [docs/quality.md](docs/quality.md) (checking a guide),
 [docs/runbook.md](docs/runbook.md) (the whole process, start to finish).
