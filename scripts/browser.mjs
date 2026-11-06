@@ -7,10 +7,11 @@
 // session.from = "none": a public app or a local demo, no sign-in.
 // serveDir (optional): a folder of static files to film at the site URL without running a server (the demo uses it).
 import { chromium } from "playwright-core";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { extname, join, normalize } from "node:path";
+import { join } from "node:path";
 import { CONFIG, STUDIO } from "./paths.mjs";
+import { staticFile } from "./static-files.mjs";
 
 export const SITE = process.env.GUIDES_SITE ?? CONFIG.site;
 // Laid out at viewport CSS px and drawn at `scale`, so frames are sharp at 1080p with room to zoom.
@@ -69,12 +70,8 @@ export async function openSite() {
   // the files directly.
   if (CONFIG.serveDir) {
     const root = join(STUDIO, CONFIG.serveDir);
-    const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".svg": "image/svg+xml", ".json": "application/json" };
-    await context.route(`${new URL(SITE).origin}/**`, (route) => {
-      const path = normalize(decodeURIComponent(new URL(route.request().url()).pathname)).replace(/^(\.\.[/\\])+/, "");
-      const file = join(root, path.endsWith("/") ? `${path}index.html` : path);
-      if (!existsSync(file)) return route.fulfill({ status: 404, body: "Not found" });
-      return route.fulfill({ status: 200, contentType: types[extname(file)] ?? "application/octet-stream", body: readFileSync(file) });
+    await context.route(`${new URL(SITE).origin}/**`, async (route) => {
+      return route.fulfill(await staticFile(root, route.request().url()));
     });
   }
   const page = await context.newPage();

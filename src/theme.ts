@@ -4,7 +4,7 @@
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
 import config from "../guides.config.json";
 
-const b = (config as { brand?: Record<string, string | number> }).brand ?? {};
+const b = (config as { brand?: Record<string, string | number | null> }).brand ?? {};
 const family = String(b.font ?? "Inter");
 export const fontFamily = family === "Inter" ? loadInter("normal", { weights: ["400", "500", "600", "700"], subsets: ["latin"] }).fontFamily : family;
 
