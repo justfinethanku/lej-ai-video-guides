@@ -4,6 +4,7 @@
   "description": "Narrated video guides and written guides for your web app, filmed on the live app, voiced with ElevenLabs, with motion graphics and a real edit in DaVinci Resolve Studio.",
   "type": "module",
   "scripts": {
+    "test": "node --test --test-concurrency=2 tests/*.test.mjs",
     "doctor": "node scripts/doctor.mjs",
     "demo": "node scripts/demo-server.mjs",
     "chrome": "node scripts/chrome.mjs",
@@ -31,6 +32,11 @@
     "typescript": "^7.0.2"
   },
   "pnpm": {
+    "overrides": {
+      "source-map-js@<1.2.2": "1.2.2",
+      "fast-uri@>=3.0.0 <3.1.9": "3.1.9",
+      "zod@>=4.0.0 <4.6.6": "4.6.6"
+    },
     "onlyBuiltDependencies": [
       "esbuild"
     ]
