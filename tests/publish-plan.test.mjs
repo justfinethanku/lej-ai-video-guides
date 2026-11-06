@@ -47,7 +47,7 @@ test("offline planner preserves clip layout, cue-driven titles/zooms and publica
 async function publisher(t) {
   const f = await fixture(t);
   await mkdir(join(f.studio, "scripts"));
-  for (const file of ["paths.mjs", "publish.mjs", "publish-plan.mjs"]) {
+  for (const file of ["paths.mjs", "publish.mjs", "publish-plan.mjs", "resumable-upload.mjs"]) {
     await copyFile(new URL(`../scripts/${file}`, import.meta.url), join(f.studio, "scripts", file));
   }
   await writeFile(join(f.studio, "guides.config.json"), JSON.stringify({ media: f.media, publish: { type: "folder" } }));
