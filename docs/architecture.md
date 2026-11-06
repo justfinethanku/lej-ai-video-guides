@@ -1,0 +1,63 @@
+# Pipeline architecture
+
+The kit is a sequence of command-line stages joined by files. Keep scripts and written guides in `content/`;
+keep generated media under the configured media root. Each stage can be rerun independently when its inputs change.
+
+## Dependencies and data flow
+
+| Stage | Inputs | Outputs under the media root | Runtime boundary |
+| --- | --- | --- | --- |
+| `voice.mjs` | Guide beats, voice config | `<slug>/vo/<beat>.wav` and `.json` with duration and aligned words | ElevenLabs, ffmpeg and ffprobe |
+| `capture.mjs` | Shot steps, voice timings | `<slug>/capture/<beat>.mp4` and `.json` with element boxes and events | Playwright, app session and ffmpeg |
+| `graphics.mjs` | Graphic props, voice timings, captured boxes | `<slug>/graphics/*.mov` and `manifest.json` | Remotion bundler and renderer |
+| `edit_plan.py` | Guide, voice timings, capture metadata, graphics manifest | Returns clip layout, overlays, titles and markers to the caller | Python standard library; explicit studio and media roots |
+| `resolve_build.py` | Edit plan and generated media | Versioned render, `.plan.json`, timeline exports and project export | DaVinci Resolve Studio scripting |
+| `publish.mjs` | Versioned render and plan, written guide, guide metadata | Still images, loops, poster, video and guide row | ffmpeg; folder copy or Supabase upload |
+
+[`paths.mjs`](../scripts/paths.mjs) loads machine configuration and optional environment values for the Node CLIs.
+[`browser.mjs`](../scripts/browser.mjs) owns Chromium discovery, borrowed session cookies and local static routing.
+[`timing.mjs`](../scripts/timing.mjs) owns shared Node word-cue matching and narration lead/tail values. Capture and
+graphics import it directly; using cue timing does not import a browser, renderer or machine configuration.
+Python's `word_time` in the planner implements the matching used by Resolve titles and zooms.
+
+The React files in `src/` are Remotion compositions. `src/theme.ts` reads the same config's brand fields at bundle
+time. The files in `site-example/` are integration examples for a separate Next.js application; the kit's dependency
+install and TypeScript check do not build that application.
+
+## Render-plan contract
+
+The graphics manifest describes the current working media. It is overwritten when graphics change.
+The versioned `<slug>/renders/<slug>-guide-v<N>.plan.json` describes a particular cut.
+
+New cuts write `schema_version: 2`, along with `version`, `timeline`, total `seconds` and `beats`.
+Each saved beat contains:
+
+- `id`: its script identifier.
+- `start` and `length`: seconds within the finished video, aligned to the 30 fps edit.
+- `publish.graphic`: whether the graphics manifest marks it as a full-frame graphic.
+- `publish.overlays`: callout `start` and `end` times in seconds relative to the beat.
+
+The publisher selects graphic stills near the end of the beat, screen stills during the first callout, and other
+stills at 60% of the beat. These decisions use the metadata saved with that cut, so rebuilding graphics for a later
+version does not change still selection for an earlier render. New plans do not need the working graphics manifest
+at publish time.
+
+Older plans have no `publish` fields. They remain supported through the current graphics manifest, with a warning
+that still selection depends on that working file. Build a new cut version to create a snapshot; an old plan alone
+cannot recover the graphics metadata that existed when it was rendered.
+
+The snapshot covers extraction timing. Publishing still reads the current `content/<slug>.json` and `.md` for guide
+text and references; those files are not an archived copy of an earlier version's prose.
+
+## Verify the file contracts
+
+With project dependencies installed and Python 3 available, run the suite from the repository root:
+
+```bash
+pnpm test
+```
+
+The planner tests create synthetic guide, voice, capture and manifest files and check the resulting layout without
+loading Resolve. The publishing tests run the real CLI in folder mode with a recording stand-in for ffmpeg, then
+inspect extraction times and published files. They cover changed and missing working manifests and legacy plans.
+They do not exercise media encoding, live application sessions, ElevenLabs, Resolve rendering or remote publishing.
