@@ -5,9 +5,11 @@
 
 - **`supabase`**: uploads video, poster, stills and clips to a private Storage bucket under `<page>/v<version>/` and
   upserts one row per guide into a table. Credentials come from `publish.envFile` (`SUPABASE_URL`,
-  `SUPABASE_SERVICE_ROLE_KEY`). Files over 20 MB go through the resumable (TUS) endpoint in 6 MB pieces, resuming from
-  the server's offset after a dropped connection; an existing object is deleted first, because TUS answers 409 to a
-  replace even with `x-upsert`. Small uploads retry on dropped connections.
+  `SUPABASE_SERVICE_ROLE_KEY`). Files over 20 MB go through the resumable (TUS) endpoint in 6 MiB pieces read from
+  disk as needed, resuming from the server's offset after a dropped connection. The publisher deletes an existing
+  object before starting its replacement upload. Small uploads retry on dropped connections. The large-file
+  uploader holds one source chunk rather than the whole video in memory;
+  [upload measurements](upload-performance.md) cover the change and its limits.
 - **`folder`**: writes the same files plus `guide.json` (the row) and `body.md` to `<media>/<page>/site/v<version>/`,
   for any site or CMS to serve.
 

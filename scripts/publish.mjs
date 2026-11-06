@@ -12,6 +12,7 @@ import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from 
 import { join } from "node:path";
 import { CONFIG, CONTENT, media, script, STUDIO } from "./paths.mjs";
 import { stillTime } from "./publish-plan.mjs";
+import { uploadResumable } from "./resumable-upload.mjs";
 
 const P = CONFIG.publish ?? { type: "folder" };
 const SUPABASE = P.type === "supabase";
@@ -33,40 +34,6 @@ if (SUPABASE) {
   auth = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 }
 
-// Big files (the videos) go up in 6 MB pieces through Storage's resumable (TUS) endpoint; one request can't carry them.
-async function uploadResumable(path, file, type) {
-  const bytes = readFileSync(file);
-  // A resumable upload won't replace an existing object, so a re-publish removes the old one first.
-  await fetch(`${BASE}/storage/v1/object/${BUCKET}/${path}`, { method: "DELETE", headers: auth }).catch(() => null);
-  const b64 = (s) => Buffer.from(s).toString("base64");
-  const meta = `bucketName ${b64(BUCKET)},objectName ${b64(path)},contentType ${b64(type)},cacheControl ${b64("3600")}`;
-  const start = await fetch(`${BASE}/storage/v1/upload/resumable`, {
-    method: "POST",
-    headers: { ...auth, "Tus-Resumable": "1.0.0", "Upload-Length": String(bytes.length), "Upload-Metadata": meta, "x-upsert": "true" },
-  });
-  if (start.status !== 201) throw new Error(`resumable ${path}: ${start.status} ${(await start.text()).slice(0, 200)}`);
-  const at = start.headers.get("location");
-  const CHUNK = 6 * 1024 * 1024;
-  let offset = 0;
-  let failures = 0;
-  while (offset < bytes.length) {
-    const piece = bytes.subarray(offset, Math.min(bytes.length, offset + CHUNK));
-    try {
-      const res = await fetch(at, { method: "PATCH", headers: { ...auth, "Tus-Resumable": "1.0.0", "Upload-Offset": String(offset), "Content-Type": "application/offset+octet-stream" }, body: piece });
-      if (res.status !== 204) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`);
-      offset = Number(res.headers.get("upload-offset") ?? offset + piece.length);
-      failures = 0;
-    } catch (e) {
-      // A dropped connection: ask the server how much it has, and carry on from there.
-      if (++failures > 5) throw new Error(`resumable ${path} at ${offset}: ${e.message}`);
-      await new Promise((r) => setTimeout(r, 2000 * failures));
-      const head = await fetch(at, { method: "HEAD", headers: { ...auth, "Tus-Resumable": "1.0.0" } }).catch(() => null);
-      if (head?.ok) offset = Number(head.headers.get("upload-offset") ?? offset);
-    }
-  }
-  console.log(`  ${path}  ${(bytes.length / 1e6).toFixed(1)} MB (resumable)`);
-}
-
 async function upload(path, file, type) {
   const size = statSync(file).size;
   if (!SUPABASE) {
@@ -75,7 +42,11 @@ async function upload(path, file, type) {
     console.log(`  ${path}  ${(size / 1e6).toFixed(1)} MB (folder)`);
     return;
   }
-  if (size > 20e6) return uploadResumable(path, file, type);
+  if (size > 20e6) {
+    await uploadResumable(path, file, type, { base: BASE, bucket: BUCKET, auth });
+    console.log(`  ${path}  ${(size / 1e6).toFixed(1)} MB (resumable)`);
+    return;
+  }
   // Storage drops a connection now and then; the upload replaces the object, so trying again is safe.
   for (let attempt = 1; ; attempt++) {
     try {
