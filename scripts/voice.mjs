@@ -1,11 +1,12 @@
 // Voiceover: one WAV per beat, with word timings, from ElevenLabs (voice, model and settings in guides.config.json).
 //   node scripts/voice.mjs <slug> [beatId ...]
-// A beat whose text has not changed since its last take is skipped (its .json keeps the text's hash), so re-running
-// after editing one line re-voices only that line. The key comes from the environment variable named by voice.keyEnv
+// Complete takes are reused when text, neighbouring context and voice/output settings match their saved hash.
+// The key comes from the environment variable named by voice.keyEnv
 // (default ELEVENLABS_API_KEY), which may also be set in a .env file next to the config.
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { CONFIG, media, script } from "./paths.mjs";
 
 const V = CONFIG.voice;
@@ -18,7 +19,10 @@ const LUFS = V.lufs ?? -16;
 /** Plain gain (plus a safety limiter) so every take sits at voice.lufs (-16, the usual level for spoken web video). */
 export function level(wav) {
   // ffmpeg prints the loudness summary on stderr.
-  const report = spawnSync("ffmpeg", ["-hide_banner", "-i", wav, "-af", "ebur128=framelog=quiet", "-f", "null", "-"]).stderr.toString();
+  const measuredRun = spawnSync("ffmpeg", ["-hide_banner", "-i", wav, "-af", "ebur128=framelog=quiet", "-f", "null", "-"]);
+  if (measuredRun.error) throw measuredRun.error;
+  if (measuredRun.status !== 0) throw new Error("ffmpeg loudness measurement failed");
+  const report = measuredRun.stderr.toString();
   const measured = [...report.matchAll(/ I:\s+(-?[\d.]+) LUFS/g)].pop();
   if (!measured) return;
   const gain = (LUFS - Number(measured[1])).toFixed(2);
@@ -83,18 +87,32 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const spoken = guide.beats.filter((b) => b.say);
   for (const [i, beat] of spoken.entries()) {
     if (only.length && !only.includes(beat.id)) continue;
-    const hash = createHash("sha1").update(`${MODEL}|${VOICE}|${JSON.stringify(SETTINGS)}|${beat.say}`).digest("hex").slice(0, 12);
+    const prev = spoken[i - 1]?.say;
+    const next = spoken[i + 1]?.say;
+    const hash = createHash("sha1").update(JSON.stringify({ model: MODEL, voice: VOICE, settings: SETTINGS, lufs: LUFS, text: beat.say, prev, next })).digest("hex").slice(0, 12);
     const meta = media(slug, "vo", `${beat.id}.json`);
-    if (existsSync(meta) && JSON.parse(readFileSync(meta, "utf8")).hash === hash) continue;
-    const out = await voice(beat, spoken[i - 1]?.say, spoken[i + 1]?.say, apiKey);
-    const pcm = media(slug, "vo", `${beat.id}.pcm`);
-    writeFileSync(pcm, Buffer.from(out.audio_base64, "base64"));
     const wav = media(slug, "vo", `${beat.id}.wav`);
-    execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "s16le", "-ar", "48000", "-ac", "1", "-i", pcm, wav]);
-    execFileSync("rm", [pcm]);
-    level(wav);
-    const seconds = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wav]).toString());
-    writeFileSync(meta, JSON.stringify({ id: beat.id, hash, say: beat.say, seconds, words: wordsFrom(out.alignment) }, null, 2));
-    console.log(`${beat.id}  ${seconds.toFixed(1)} s`);
+    const audio = existsSync(wav) ? statSync(wav) : null;
+    if (existsSync(meta) && audio?.isFile() && audio.size > 0 && JSON.parse(readFileSync(meta, "utf8")).hash === hash) continue;
+    const out = await voice(beat, prev, next, apiKey);
+    // Finish conversion, leveling and metadata before replacing a successful take.
+    // The staging directory is on the same filesystem as the final WAV, and is removed on failure too.
+    const staging = mkdtempSync(join(dirname(wav), ".voice-"));
+    try {
+      const pcm = join(staging, "take.pcm");
+      const take = join(staging, "take.wav");
+      const metadata = join(staging, "take.json");
+      writeFileSync(pcm, Buffer.from(out.audio_base64, "base64"));
+      execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "s16le", "-ar", "48000", "-ac", "1", "-i", pcm, take]);
+      level(take);
+      const seconds = Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", take]).toString());
+      if (!Number.isFinite(seconds) || seconds <= 0) throw new Error(`${beat.id}: invalid audio duration`);
+      writeFileSync(metadata, JSON.stringify({ id: beat.id, hash, say: beat.say, seconds, words: wordsFrom(out.alignment) }, null, 2));
+      renameSync(take, wav);
+      renameSync(metadata, meta);
+      console.log(`${beat.id}  ${seconds.toFixed(1)} s`);
+    } finally {
+      rmSync(staging, { recursive: true, force: true });
+    }
   }
 }
