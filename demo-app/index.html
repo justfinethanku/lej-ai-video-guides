@@ -7,11 +7,18 @@
 <!-- A small fictional support app to film the example guide against. All data is made up and lives in memory:
      reload the page and it starts fresh, so every take films the same screen. -->
 <style>
-  :root { --ink:#1f2330; --muted:#6b7080; --line:#e4e6ec; --bg:#f7f8fa; --accent:#4f46e5; --accent-soft:#eef0ff; --danger:#c2410c; --ok:#15803d; --r:10px; }
+  :root { --ink:#1f2330; --muted:#626777; --line:#e4e6ec; --bg:#f7f8fa; --accent:#4f46e5; --accent-soft:#eef0ff; --danger:#c2410c; --ok:#15803d; --r:10px; }
   * { box-sizing: border-box; }
   body { margin:0; font: 14px/20px Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--ink); background:#fff; }
   button, input, textarea, select { font: inherit; color: inherit; }
-  button { cursor: pointer; }
+  button { cursor: pointer; min-height:24px; }
+  :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+  .search:focus-within { outline:3px solid var(--accent); outline-offset:3px; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+  .request-open { display:block; background:none; border:0; padding:0; text-align:left; font-weight:600; }
+  .table-wrap { overflow-x:auto; }
+  .search input { min-width:0; }
+
   header { display:flex; align-items:center; gap:28px; height:56px; padding:0 24px; border-bottom:1px solid var(--line); }
   .logo { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.2px; }
   .logo i { width:26px; height:26px; border-radius:8px; background:var(--accent); display:inline-block; position:relative; }
@@ -46,7 +53,7 @@
   tbody tr { cursor:pointer; }
   tbody tr:hover { background:var(--bg); }
   tbody tr.open { background:var(--accent-soft); }
-  .subj b { display:block; font-weight:600; }
+  .subj .request-open { display:block; font-weight:600; }
   .subj span { color:var(--muted); font-size:13px; }
   .pri { font-size:12px; padding:2px 8px; border-radius:999px; background:var(--bg); }
   .pri.urgent { background:#fff1e8; color:var(--danger); }
@@ -74,21 +81,34 @@
   .btn:disabled { opacity:.5; cursor:default; }
   .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--ink); color:#fff; border-radius:var(--r); padding:12px 16px; display:flex; gap:16px; align-items:center; box-shadow:0 10px 30px rgba(20,24,40,.25); }
   .toast button { background:none; border:0; color:#c7ccff; font-weight:600; }
-  .scrim { position:fixed; inset:0; background:rgba(20,24,40,.35); display:grid; place-items:center; }
-  .dialog { background:#fff; border-radius:14px; padding:22px; width:420px; box-shadow:0 20px 50px rgba(20,24,40,.3); }
+  .toast button:focus-visible { outline-color:#c7ccff; }
+  .dialog::backdrop { background:rgba(20,24,40,.35); }
+  .dialog { border:0; max-width:calc(100vw - 24px); color:var(--ink); background:#fff; border-radius:14px; padding:22px; width:420px; box-shadow:0 20px 50px rgba(20,24,40,.3); }
   .dialog h3 { margin:0 0 8px; font-size:17px; }
   .dialog p { margin:0; color:var(--muted); }
   .dialog .row { justify-content:flex-end; margin-top:18px; }
   .dialog .row .btn.primary { margin-left:0; background:var(--danger); border-color:var(--danger); }
+  .search, .compose textarea, select { border-color:#8a8e9b; }
+  input::placeholder, textarea::placeholder { color:var(--muted); opacity:1; }
+  @media (max-width:900px) {
+    main.with-panel { grid-template-columns:minmax(0,1fr); }
+    aside { border-left:0; border-top:1px solid var(--line); }
+    header { height:auto; min-height:56px; flex-wrap:wrap; gap:12px; }
+    .bar, .tabs { flex-wrap:wrap; }
+    .search { flex:1 1 220px; }
+    .toast { max-width:calc(100vw - 24px); width:max-content; }
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="logo"><i></i>Relay Desk</div>
-  <nav><a href="#/requests" id="nav-requests" class="on">Requests</a><a href="#/customers" id="nav-customers">Customers</a></nav>
+  <nav aria-label="Main"><a href="#/requests" id="nav-requests" class="on">Requests</a><a href="#/customers" id="nav-customers">Customers</a></nav>
   <div class="me">Sam Rivera <b>SR</b></div>
 </header>
 <main id="main"></main>
+<div id="toast-host"></div>
+<div id="status" class="sr-only" role="status" aria-atomic="true"></div>
 <div id="layer"></div>
 <script>
 const people = ["Sam Rivera", "Priya Shah", "Leo Park", "Unassigned"];
@@ -106,22 +126,31 @@ let requests = [
   { id: "r9", customer: "Summit Outdoors", contact: "Kara Jensen", subject: "Question about annual billing", preview: "Is there a discount for paying yearly?", priority: "Low", status: "waiting", ageH: 40, assignee: "Priya Shah", body: "Is there a discount if we switch to paying yearly?" },
 ];
 const customers = [...new Set(requests.map((r) => r.customer))];
-const state = { tab: "open", q: "", pri: "", open: null, sent: {} };
+const state = { tab: "open", q: "", pri: "", open: null, sent: {}, drafts: {}, pending: null };
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const age = (h) => (h < 24 ? `${h} h` : `${Math.floor(h / 24)} d`);
 const route = () => (location.hash.startsWith("#/customers") ? "customers" : "requests");
 
-function render() {
+const announce = (text) => { document.getElementById("status").textContent = text; };
+const focus = (id) => (document.getElementById(id) || document.querySelector('[role="tab"][aria-selected="true"]') || document.getElementById("page-title"))?.focus();
+
+function render(focusId = document.activeElement?.id) {
   const main = document.getElementById("main");
   document.getElementById("nav-requests").className = route() === "requests" ? "on" : "";
   document.getElementById("nav-customers").className = route() === "customers" ? "on" : "";
+  for (const key of ["requests", "customers"]) {
+    const link = document.getElementById(`nav-${key}`);
+    if (route() === key) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
   if (route() === "customers") {
     main.className = "";
-    main.innerHTML = `<section class="list"><h1>Customers</h1><p class="sub">${customers.length} customers</p>
-      <table style="margin-top:18px"><thead><tr><th>Customer</th><th>Open requests</th><th>Last request</th></tr></thead><tbody>
+    main.innerHTML = `<section class="list"><h1 id="page-title" tabindex="-1">Customers</h1><p class="sub">${customers.length} customers</p>
+      <div class="table-wrap"><table style="margin-top:18px"><caption class="sr-only">Customers</caption><thead><tr><th>Customer</th><th>Open requests</th><th>Last request</th></tr></thead><tbody>
       ${customers.map((c) => { const rs = requests.filter((r) => r.customer === c); return `<tr><td><b>${esc(c)}</b></td><td>${rs.filter((r) => r.status === "open").length}</td><td>${age(Math.min(...rs.map((r) => r.ageH)))} ago</td></tr>`; }).join("")}
-      </tbody></table></section>`;
+      </tbody></table></div></section>`;
+    if (focusId) focus(focusId);
     return;
   }
   const counts = { open: 0, waiting: 0, done: 0 };
@@ -135,93 +164,157 @@ function render() {
   main.className = open ? "with-panel" : "";
   main.innerHTML = `
   <section class="list">
-    <h1>Requests</h1>
-    <p class="sub">Replies go out from support@relaydesk.example. Requests older than 24 hours show in red.</p>
-    <div class="tabs" role="tablist">
-      ${[["open", "Open"], ["waiting", "Waiting on customer"], ["done", "Done"]].map(([k, l]) => `<button role="tab" data-tab="${k}" class="${state.tab === k ? "on" : ""}">${l} <span class="count">${counts[k]}</span></button>`).join("")}
+    <h1 id="page-title" tabindex="-1">Requests</h1>
+    <p class="sub">Replies go out from support@relaydesk.example. Requests older than 24 hours are marked overdue.</p>
+    <div class="tabs" role="tablist" aria-label="Request status">
+      ${[["open", "Open"], ["waiting", "Waiting on customer"], ["done", "Done"]].map(([k, l]) => `<button id="tab-${k}" role="tab" aria-selected="${state.tab === k}" aria-controls="request-results" tabindex="${state.tab === k ? 0 : -1}" data-tab="${k}" class="${state.tab === k ? "on" : ""}">${l} <span class="count">${counts[k]}</span></button>`).join("")}
     </div>
     <div class="bar">
-      <label class="search">⌕ <input id="q" placeholder="Search customer or subject" value="${esc(state.q)}"></label>
-      <div class="chip"><button id="pri" class="${state.pri ? "set" : ""}">Priority: ${state.pri || "any"} ▾</button></div>
+      <label class="search"><span aria-hidden="true">⌕</span><span class="sr-only">Search customer or subject</span><input id="q" placeholder="Search customer or subject" value="${esc(state.q)}"></label>
+      <div class="chip"><button id="pri" aria-expanded="false" aria-controls="priority-options" class="${state.pri ? "set" : ""}">Priority: ${state.pri || "any"} ▾</button></div>
       ${state.pri || state.q ? `<button class="btn" id="clear">Clear</button>` : ""}
     </div>
-    ${rows.length ? `<table><thead><tr><th>Customer</th><th>Request</th><th>Priority</th><th>Age</th><th>Assigned to</th></tr></thead><tbody>
-      ${rows.map((r) => `<tr data-id="${r.id}" class="${r.id === state.open ? "open" : ""}"><td>${esc(r.customer)}</td><td class="subj"><b>${esc(r.subject)}</b><span>${esc(r.preview)}</span></td><td><span class="pri ${r.priority === "Urgent" ? "urgent" : ""}">${r.priority}</span></td><td class="age ${r.ageH > 24 && r.status === "open" ? "late" : ""}">${age(r.ageH)}</td><td>${esc(r.assignee)}</td></tr>`).join("")}
-    </tbody></table>` : `<p class="empty">No requests here.</p>`}
+    <div id="request-results" role="tabpanel" aria-labelledby="tab-${state.tab}" tabindex="0">
+    ${rows.length ? `<div class="table-wrap"><table><caption class="sr-only">${state.tab} requests</caption><thead><tr><th>Customer</th><th>Request</th><th>Priority</th><th>Age</th><th>Assigned to</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr data-id="${r.id}" class="${r.id === state.open ? "open" : ""}"><td>${esc(r.customer)}</td><td class="subj"><button class="request-open" id="request-${r.id}" aria-controls="panel" aria-expanded="${r.id === state.open}">${esc(r.subject)}</button><span>${esc(r.preview)}</span></td><td><span class="pri ${r.priority === "Urgent" ? "urgent" : ""}">${r.priority}</span></td><td class="age ${r.ageH > 24 && r.status === "open" ? "late" : ""}">${age(r.ageH)}${r.ageH > 24 && r.status === "open" ? `<span> · overdue</span>` : ""}</td><td>${esc(r.assignee)}</td></tr>`).join("")}
+    </tbody></table></div>` : `<p class="empty">No requests here.</p>`}
+    </div>
   </section>
   ${open ? panel(open) : ""}`;
   wire();
+  if (focusId) focus(focusId);
 }
 
 function panel(r) {
   const sent = state.sent[r.id] || [];
-  return `<aside id="panel">
-    <div class="phead"><button class="x" id="close-panel" aria-label="Close">×</button><h2>${esc(r.subject)}</h2>
+  return `<aside id="panel" aria-labelledby="request-title">
+    <div class="phead"><button class="x" id="close-panel" aria-label="Close request panel">×</button><h2 id="request-title" tabindex="-1">${esc(r.subject)}</h2>
       <dl><dt>Customer</dt><dd>${esc(r.customer)} · ${esc(r.contact)}</dd><dt>Received</dt><dd>${age(r.ageH)} ago</dd><dt>Priority</dt><dd>${r.priority}</dd>
-      <dt>Assigned to</dt><dd><select id="assign">${people.map((p) => `<option ${p === r.assignee ? "selected" : ""}>${p}</option>`).join("")}</select></dd></dl></div>
+      <dt><label for="assign">Assigned to</label></dt><dd><select id="assign">${people.map((p) => `<option ${p === r.assignee ? "selected" : ""}>${p}</option>`).join("")}</select></dd></dl></div>
     <div class="thread"><div class="msg"><small>${esc(r.contact)} wrote</small>${esc(r.body)}</div>
       ${sent.map((t) => `<div class="msg mine"><small>You replied</small>${esc(t)}</div>`).join("")}</div>
-    ${r.status === "done" ? "" : `<div class="compose"><textarea id="reply" placeholder="Write a reply to ${esc(r.contact)}…"></textarea>
-      <div class="row"><button class="btn danger" id="close-request">Close request</button><button class="btn primary" id="send">Send reply</button></div></div>`}
+    ${r.status === "done" ? "" : `<div class="compose"><label for="reply" class="sr-only">Reply to ${esc(r.contact)}</label><textarea id="reply" placeholder="Write a reply to ${esc(r.contact)}…">${esc(state.drafts[r.id] || "")}</textarea>
+      <div class="row"><button class="btn danger" id="close-request" ${state.pending ? "disabled" : ""}>Close request</button><button class="btn primary" id="send" ${state.pending ? "disabled" : ""}>Send reply</button></div></div>`}
   </aside>`;
 }
 
+function closePriority(restore = false) {
+  document.getElementById("priority-options")?.remove();
+  document.getElementById("pri")?.setAttribute("aria-expanded", "false");
+  if (restore) focus("pri");
+}
+
 function wire() {
-  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; state.open = null; render(); }));
+  const tabs = [...document.querySelectorAll("[data-tab]")];
+  for (const b of tabs) {
+    b.onclick = () => { state.tab = b.dataset.tab; state.open = null; render(b.id); };
+    b.onkeydown = (event) => {
+      let index = tabs.indexOf(b);
+      if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") index = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === "Home") index = 0;
+      else if (event.key === "End") index = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      tabs[index].click();
+    };
+  }
   const q = document.getElementById("q");
-  if (q) q.oninput = () => { state.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); };
+  q.oninput = () => {
+    state.q = q.value;
+    const start = q.selectionStart, end = q.selectionEnd;
+    render("q");
+    document.getElementById("q").setSelectionRange(start, end);
+    announce(`${document.querySelectorAll("tr[data-id]").length} requests found.`);
+  };
   const pri = document.getElementById("pri");
-  if (pri) pri.onclick = (e) => {
-    e.stopPropagation();
-    if (document.querySelector(".menu")) return document.querySelector(".menu").remove();
-    const m = document.createElement("div");
-    m.className = "menu";
-    m.setAttribute("role", "listbox");
-    m.innerHTML = ["any", "Urgent", "Normal", "Low"].map((p) => `<button role="option" data-p="${p}">${p === "any" ? "Any priority" : p}</button>`).join("");
-    pri.parentElement.append(m);
-    m.querySelectorAll("button").forEach((b) => (b.onclick = () => { state.pri = b.dataset.p === "any" ? "" : b.dataset.p; render(); }));
+  pri.onclick = (event) => {
+    event.stopPropagation();
+    if (document.getElementById("priority-options")) return closePriority(true);
+    const options = document.createElement("div");
+    options.id = "priority-options";
+    options.className = "menu";
+    // This is a disclosure of ordinary buttons; Tab reaches each choice.
+    options.innerHTML = ["any", "Urgent", "Normal", "Low"].map((p) => `<button data-p="${p}" aria-pressed="${(state.pri || "any") === p}">${p === "any" ? "Any priority" : p}</button>`).join("");
+    pri.parentElement.append(options);
+    pri.setAttribute("aria-expanded", "true");
+    options.querySelectorAll("button").forEach((b) => (b.onclick = () => {
+      state.pri = b.dataset.p === "any" ? "" : b.dataset.p;
+      render("pri");
+      announce(`${document.querySelectorAll("tr[data-id]").length} requests found.`);
+    }));
+    options.querySelector("button[aria-pressed=true]").focus();
   };
   const clear = document.getElementById("clear");
-  if (clear) clear.onclick = () => { state.q = ""; state.pri = ""; render(); };
-  document.querySelectorAll("tbody tr[data-id]").forEach((tr) => (tr.onclick = () => { state.open = tr.dataset.id; render(); }));
+  if (clear) clear.onclick = () => { state.q = ""; state.pri = ""; render("q"); announce("Filters cleared."); };
+  document.querySelectorAll("tbody tr[data-id]").forEach((tr) => (tr.onclick = () => { state.open = tr.dataset.id; render("request-title"); }));
   const x = document.getElementById("close-panel");
-  if (x) x.onclick = () => { state.open = null; render(); };
-  const r = requests.find((q) => q.id === state.open);
+  if (x) x.onclick = () => { const id = state.open; state.open = null; render(`request-${id}`); };
+  const r = requests.find((request) => request.id === state.open);
   const assign = document.getElementById("assign");
-  if (assign) assign.onchange = () => { r.assignee = assign.value; render(); };
+  if (assign) assign.onchange = () => { r.assignee = assign.value; render("assign"); announce(`Assigned to ${r.assignee}.`); };
+  const reply = document.getElementById("reply");
+  if (reply) reply.oninput = () => { state.drafts[r.id] = reply.value; };
   const send = document.getElementById("send");
   if (send) send.onclick = () => {
-    const text = document.getElementById("reply").value.trim();
-    if (!text) return;
+    const text = reply.value.trim();
+    if (!text || state.pending) { if (!text) { announce("Write a reply before sending."); focus("reply"); } return; }
+    state.pending = r.id;
+    const host = document.getElementById("toast-host");
+    // Keep the Undo node stable: replacing it every second loses keyboard focus.
+    host.innerHTML = `<div class="toast" id="toast">Sending your reply to ${esc(r.contact)}… <button id="undo">Undo<span id="countdown" aria-hidden="true"> · 5s</span></button></div>`;
+    announce("Reply will send in five seconds. Undo is available.");
+    render("undo");
     let left = 5;
-    const layer = document.getElementById("layer");
-    const draw = () => (layer.innerHTML = `<div class="toast" id="toast">Sending your reply to ${esc(r.contact)}… <button id="undo">Undo · ${left}s</button></div>`);
-    draw();
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       left--;
-      if (left > 0) { draw(); wireUndo(); return; }
-      clearInterval(t);
+      if (left > 0) { document.getElementById("countdown").textContent = ` · ${left}s`; return; }
+      clearInterval(timer);
+      const undoFocused = document.activeElement?.id === "undo";
       (state.sent[r.id] = state.sent[r.id] || []).push(text);
+      state.drafts[r.id] = "";
       r.status = "waiting";
-      layer.innerHTML = `<div class="toast">Reply sent. Moved to Waiting on customer.</div>`;
-      setTimeout(() => (layer.innerHTML = ""), 2500);
-      render();
+      state.pending = null;
+      host.innerHTML = '<div class="toast">Reply sent. Moved to Waiting on customer.</div>';
+      const notice = host.firstElementChild;
+      setTimeout(() => notice.remove(), 2500);
+      announce("Reply sent. Moved to Waiting on customer.");
+      render(undoFocused ? (state.open === r.id ? "assign" : `tab-${state.tab}`) : document.activeElement?.id);
     }, 1000);
-    const wireUndo = () => (document.getElementById("undo").onclick = () => { clearInterval(t); layer.innerHTML = ""; });
-    wireUndo();
+    document.getElementById("undo").onclick = () => {
+      clearInterval(timer);
+      state.pending = null;
+      host.innerHTML = "";
+      announce("Reply cancelled. Nothing was sent.");
+      render(state.open === r.id ? "reply" : `tab-${state.tab}`);
+    };
   };
   const closeReq = document.getElementById("close-request");
   if (closeReq) closeReq.onclick = () => {
     const layer = document.getElementById("layer");
-    layer.innerHTML = `<div class="scrim"><div class="dialog" role="dialog"><h3>Close this request?</h3><p>${esc(r.customer)} won't be able to reply to it, and it can't be reopened.</p>
-      <div class="row"><button class="btn" id="cancel">Cancel</button><button class="btn primary" id="confirm">Close request</button></div></div></div>`;
-    document.getElementById("cancel").onclick = () => (layer.innerHTML = "");
-    document.getElementById("confirm").onclick = () => { r.status = "done"; state.open = null; layer.innerHTML = ""; render(); };
+    layer.innerHTML = `<dialog class="dialog" aria-labelledby="close-title" aria-describedby="close-description"><h3 id="close-title">Close this request?</h3><p id="close-description">${esc(r.customer)} won't be able to reply to it, and it can't be reopened.</p>
+      <div class="row"><button class="btn" id="cancel" autofocus>Cancel</button><button class="btn primary" id="confirm">Close request</button></div></dialog>`;
+    const dialog = layer.querySelector("dialog");
+    // Native modal supplies background inertness, focus containment, and Escape.
+    dialog.onclose = () => { layer.innerHTML = ""; focus("close-request"); };
+    document.getElementById("cancel").onclick = () => dialog.close();
+    document.getElementById("confirm").onclick = () => {
+      dialog.close();
+      r.status = "done";
+      state.open = null;
+      render(`tab-${state.tab}`);
+      announce("Request closed. Moved to Done.");
+    };
+    dialog.showModal();
   };
 }
 
-document.addEventListener("click", () => document.querySelector(".menu")?.remove());
-addEventListener("hashchange", () => { const o = new URLSearchParams(location.hash.split("?")[1]).get("open"); if (o) state.open = o; render(); });
+document.addEventListener("click", (event) => { if (!event.target.closest(".chip")) closePriority(); });
+document.addEventListener("focusin", (event) => { if (!event.target.closest(".chip")) closePriority(); });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.getElementById("priority-options")) { event.preventDefault(); closePriority(true); }
+});
+addEventListener("hashchange", () => { const o = new URLSearchParams(location.hash.split("?")[1]).get("open"); state.open = o || null; render("page-title"); });
 const open = new URLSearchParams(location.hash.split("?")[1]).get("open");
 if (open) state.open = open;
 render();
