@@ -24,30 +24,49 @@ Step-by-step setup: **[limitededitionjonathan.com/connect/ai-video-guides-instal
 
 People who make professional video and want it to be repeatable. You need:
 
-- **DaVinci Resolve Studio** (the paid version, about $295, one-time). The free version of Resolve has no external
+- **DaVinci Resolve Studio** (the paid version). The free version of Resolve has no external
   scripting, and the edit is built through it. The cut exports to FCPXML and OTIO for finishing in Final Cut Pro or
   Premiere Pro, but Resolve Studio builds it.
-- **An ElevenLabs account** for the voice (Eleven v4) and the music bed. The paid Starter tier or above; a four-minute
-  guide uses roughly 4,000 characters.
-- A Mac (tested) or Linux/Windows machine with **Node 20+**, **ffmpeg**, **Python 3** and **pnpm**.
+- **An ElevenLabs account** with access to the configured voice model and, if generating a music bed, the Music API.
+  These generation steps can incur provider charges.
+- A Mac (the original tested production path) with **Node 20+**, **ffmpeg and ffprobe**, **Python 3** and **pnpm**.
+  Linux can run the offline checks; Linux ARM64 and Windows have browser-discovery limits described in [setup](docs/setup.md#platform-limits).
 
 ## Install
+
+The complete local setup, supported-platform limits and recovery steps are in
+[Set up the guide studio](docs/setup.md). From a terminal with Node, pnpm, Python 3 and ffmpeg available:
 
 ```bash
 git clone https://github.com/justfinethanku/lej-ai-video-guides.git
 cd lej-ai-video-guides
-pnpm install
-npx playwright-core install chromium
+pnpm install --frozen-lockfile
 cp guides.config.example.json guides.config.json
-echo "ELEVENLABS_API_KEY=your-key-here" > .env
+pnpm exec playwright-core install chromium
+pnpm test
+pnpm exec tsc --noEmit
 ```
+
+Before generating media, set `media` in `guides.config.json` to a writable folder outside the repository and make
+`ELEVENLABS_API_KEY` available in the process environment through your credential manager. The kit also reads an
+existing local `.env`; Fleet users provision credentials through Fleet. Keep credentials out of the config and git.
 
 In DaVinci Resolve Studio: **Preferences > System > General > External scripting using: Local**, then restart Resolve.
+The configured `brand.font` (or `brand.titleFont` override) must be installed on the Resolve machine.
+
+Run the kit's checks before generating anything:
 
 ```bash
-pnpm music      # makes the music bed (about 8 minutes of quiet instrumental)
-pnpm doctor     # checks everything, says what to fix
+pnpm run doctor
 ```
+
+Read each failed line. A missing music bed is expected on first setup: supply your own track at the configured
+`music.file` under the media folder, or run `pnpm run music` to generate one using the paid ElevenLabs API. Narration
+also uses that API. Run the doctor again after supplying these prerequisites.
+
+Use **`pnpm run doctor`** and **`pnpm run publish`**: the shorter forms invoke pnpm's own diagnostics and npm registry
+publisher instead of this kit's scripts. `pnpm run doctor` probes files, tools and the voice endpoint; it does not
+prove browser launch, media-folder writability, render success or paid model access. See [setup checks](docs/setup.md#verify-the-installation).
 
 ## Your first guide: the demo
 
@@ -55,11 +74,11 @@ The repo includes **Relay Desk**, a small made-up support app in `demo-app/`, an
 page in `content/requests.json`. The example config films it with no server running. With Resolve open:
 
 ```bash
-pnpm voice requests        # narration, one take per beat, with word timings
-pnpm film requests         # films each beat in time with its narration
-pnpm graphics requests     # title card, flow diagram and callouts (Remotion)
-pnpm cut requests 1        # builds, renders and exports the edit in Resolve
-pnpm publish requests 1    # the video, poster, written guide and its pictures
+pnpm run voice requests        # narration, one take per beat, with word timings
+pnpm run film requests         # films each beat in time with its narration
+pnpm run graphics requests     # title card, flow diagram and callouts (Remotion)
+pnpm run cut requests 1        # builds, renders and exports the edit in Resolve
+pnpm run publish requests 1    # the video, poster, written guide and its pictures
 ```
 
 The finished video is in your media folder under `requests/renders/`, the timeline is in the Resolve project
@@ -68,11 +87,12 @@ The finished video is in your media folder under `requests/renders/`, the timeli
 ## Your app
 
 1. Edit `guides.config.json`: product name, site URL, brand colours, font and logo (put the image in `public/`), the
-   ElevenLabs voice, the media folder, and where to publish.
-2. If your app needs a sign-in, set `"session": {"from": "chrome"}`, run `pnpm chrome`, and sign in to your app in the
+   ElevenLabs voice, the media folder, and where to publish. Remove `serveDir` when filming your live app; otherwise
+   requests keep serving the local demo.
+2. If your app needs a sign-in, set `"session": {"from": "chrome"}`, run `pnpm run chrome`, and sign in to your app in the
    window that opens. Filming borrows that profile's session; it never types a password and leaves your Chrome alone.
 3. Map a page before you write about it: every control with its exact label, what it does, what can't be undone and
-   what costs money. `pnpm look /your/page` takes a screenshot at filming size.
+   what costs money. `pnpm run look /your/page` takes a screenshot at filming size.
 4. Write `content/<page>.json` (format: [docs/script-format.md](docs/script-format.md)) and `content/<page>.md` (the
    written guide), then run the five commands above.
 
