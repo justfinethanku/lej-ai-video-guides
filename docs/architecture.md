@@ -27,6 +27,11 @@ move titles to V5. Allocation processes callouts in start-frame order while pres
 and metadata in the returned list. Invalid intervals and durations that round to zero frames fail during planning, before
 the builder connects to Resolve or reserves an output version.
 
+Allocation uses two minimum heaps: one releases tracks by end frame, and the other selects the lowest
+free track number. Sorting and allocation take O(n log n) time for n callouts, with O(n) total planning
+storage. This avoids rescanning every busy track on densely overlapping input while preserving exact
+assignments. [Callout allocation measurements](overlay-performance.md) includes the benchmark and limits.
+
 The Resolve builder consumes each overlay's `track` and the plan's `title_track`; it does not schedule callouts
 again. A rejected video-track creation or callout insertion stops the build before rendering or committing
 artifacts. The existing reserved-attempt recovery path retains evidence for the failed version.
