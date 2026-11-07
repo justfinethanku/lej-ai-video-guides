@@ -3,6 +3,7 @@
 The caller supplies the studio and media roots. This module reads only guide inputs;
 Resolve operations and writing the resulting versioned plan belong to resolve_build.py.
 """
+import heapq
 import json
 import math
 import os
@@ -28,15 +29,22 @@ def layout_overlays(overlays):
         if o["start"] < 0 or frames < 1:
             raise ValueError(f'Callout {o["file"]}: requires a nonnegative start and at least one frame')
         intervals.append((start, start + frames, i))
-    ends = []
+    # Release by end frame, then choose the lowest free track number. A single
+    # end-frame heap would change which track is reused when several are free.
+    busy, free = [], []
+    slots = 0
     for start, end, i in sorted(intervals, key=lambda span: (span[0], span[2])):
-        slot = next((j for j, busy_until in enumerate(ends) if busy_until <= start), len(ends))
-        if slot == len(ends):
-            ends.append(end)
+        while busy and busy[0][0] <= start:
+            _, released = heapq.heappop(busy)
+            heapq.heappush(free, released)
+        if free:
+            slot = heapq.heappop(free)
         else:
-            ends[slot] = end
+            slot = slots
+            slots += 1
+        heapq.heappush(busy, (end, slot))
         scheduled[i]["track"] = slot + 2
-    return scheduled, max(4, len(ends) + 2)
+    return scheduled, max(4, slots + 2)
 
 
 def read(path):

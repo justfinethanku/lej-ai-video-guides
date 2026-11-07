@@ -70,6 +70,43 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(len({t for _,_,t in ranges}), peak)
         self.assertEqual(title, peak + 2)
 
+    def test_lowest_free_track_wins_even_when_higher_tracks_finish_first(self):
+        # At frame 90 both tracks are free; V2 ended later than V3 but must win.
+        spans = [overlay(0, 3, 'low-long'), overlay(0, 1, 'high-short'),
+                 overlay(3, 1, 'reuse-low'), overlay(3, 1, 'reuse-high')]
+        after, title = layout_overlays(spans)
+        self.assertEqual([o['track'] for o in after], [2, 3, 2, 3])
+        self.assertEqual(title, 4)
+
+    def test_complete_assignment_matches_prior_policy_on_unordered_frame_ranges(self):
+        # Retain the prior scan as a small independent compatibility oracle.
+        # Compare exact assignments, not just collision freedom: lowest free
+        # track and input-order tie breaking are observable editor behavior.
+        rng = random.Random(5680)
+        for case in range(200):
+            spans = [overlay(rng.randrange(0, 80)/30, rng.randrange(1, 45)/30, str(i))
+                     for i in range(rng.randrange(1, 100))]
+            rng.shuffle(spans)
+            ends, expected = [], [dict(o) for o in spans]
+            for i in sorted(range(len(spans)), key=lambda i: (round(spans[i]['start']*FPS), i)):
+                start = round(spans[i]['start']*FPS)
+                end = start + round(spans[i]['length']*FPS)
+                track = next((j for j, until in enumerate(ends) if until <= start), len(ends))
+                if track == len(ends): ends.append(end)
+                else: ends[track] = end
+                expected[i]['track'] = track + 2
+            with self.subTest(case=case):
+                self.assertEqual(layout_overlays(spans), (expected, max(4, len(ends) + 2)))
+
+    def test_dense_waves_release_and_reuse_tracks_without_growing_title_track(self):
+        count = 2000
+        spans = [overlay(start, 1, f'{start}-{i}') for start in [0, 1, 2] for i in range(count)]
+        saved = [dict(o) for o in spans]
+        after, title = layout_overlays(spans)
+        self.assertEqual([o['track'] for o in after], list(range(2, count + 2)) * 3)
+        self.assertEqual(title, count + 2)
+        self.assertEqual(spans, saved)
+
 
 class Item:
     def GetFusionCompByIndex(self, *args): return object()
