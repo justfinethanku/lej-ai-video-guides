@@ -10,7 +10,7 @@ keep generated media under the configured media root. Each stage can be rerun in
 | `voice.mjs` | Guide beats, voice config | `<slug>/vo/<beat>.wav` and `.json` with duration and aligned words | ElevenLabs, ffmpeg and ffprobe |
 | `capture.mjs` | Shot steps, voice timings | `<slug>/capture/<beat>.mp4` and `.json` with element boxes and events | Playwright, app session and ffmpeg |
 | `graphics.mjs` | Graphic props, voice timings, captured boxes | `<slug>/graphics/*.mov` and `manifest.json` | Remotion bundler and renderer |
-| `edit_plan.py` | Guide, voice timings, capture metadata, graphics manifest | Returns clip layout, overlays, titles and markers to the caller | Python standard library; explicit studio and media roots |
+| `edit_plan.py` | Guide, voice timings, capture metadata, graphics manifest | Returns clip layout, callout track allocation, titles and markers to the caller | Python standard library; explicit studio and media roots |
 | `resolve_build.py` | Edit plan and generated media | Versioned render, `.plan.json`, timeline exports and project export | DaVinci Resolve Studio scripting |
 | `publish.mjs` | Versioned render and plan, written guide, guide metadata | Still images, loops, poster, video and guide row | ffmpeg; folder copy or Supabase upload |
 
@@ -19,6 +19,17 @@ keep generated media under the configured media root. Each stage can be rerun in
 [`timing.mjs`](../scripts/timing.mjs) owns shared Node word-cue matching and narration lead/tail values. Capture and
 graphics import it directly; using cue timing does not import a browser, renderer or machine configuration.
 Python's `word_time` in the planner implements the matching used by Resolve titles and zooms.
+
+The offline planner also owns callout track allocation. It compares each callout's rounded start frame and
+rounded duration at 30 fps, assigns the first free video track from V2 upward, and returns `title_track` above
+all callouts (V4 minimum). Touching frame ranges reuse a track; three simultaneous callouts use V2/V3/V4 and
+move titles to V5. Allocation processes callouts in start-frame order while preserving the manifest's order
+and metadata in the returned list. Invalid intervals and durations that round to zero frames fail during planning, before
+the builder connects to Resolve or reserves an output version.
+
+The Resolve builder consumes each overlay's `track` and the plan's `title_track`; it does not schedule callouts
+again. A rejected video-track creation or callout insertion stops the build before rendering or committing
+artifacts. The existing reserved-attempt recovery path retains evidence for the failed version.
 
 The React files in `src/` are Remotion compositions. `src/theme.ts` reads the same config's brand fields at bundle
 time. The files in `site-example/` are integration examples for a separate Next.js application; the kit's dependency
@@ -65,6 +76,9 @@ pnpm test
 ```
 
 The planner tests create synthetic guide, voice, capture and manifest files and check the resulting layout without
-loading Resolve. The publishing tests run the real CLI in folder mode with a recording stand-in for ffmpeg, then
+loading Resolve. Callout tests cover simultaneous overlays, frame rounding, unsorted input, unchanged two-track
+layouts, and the actual builder with a recording synthetic Resolve SDK, including rejected track/clip operations.
+These SDK fixtures verify requests and failure propagation; live Resolve placement and visual composition remain
+unverified. The publishing tests run the real CLI in folder mode with a recording stand-in for ffmpeg, then
 inspect extraction times and published files. They cover changed and missing working manifests and legacy plans.
 They do not exercise media encoding, live application sessions, ElevenLabs, Resolve rendering or remote publishing.
