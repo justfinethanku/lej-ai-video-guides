@@ -57,7 +57,8 @@ are expected until you supply them. With no config, the command stops at the con
 the checklist. Copy `guides.config.example.json` first.
 
 The doctor's media line only prints the configured path; verify that you can create a file there. Its Chromium
-check only finds cache directory names or the macOS Chrome app. Its voice request checks the voice endpoint,
+check uses the same executable as filming, checks that it exists, and launches and closes it headlessly with a
+10-second launch timeout. Its voice request checks the voice endpoint,
 not whether the configured synthesis model or Music API accepts a generation request. A successful checklist
 therefore does not prove filming, graphics or editing will succeed.
 
@@ -91,13 +92,17 @@ The original production path was macOS. The Nov 6, 2026 audit verified install a
 Ubuntu 24.04 ARM64 with Node 22.22.2, pnpm 10.33.2, Python 3.12.3 and ffmpeg 8.1. It did not verify a complete video
 build on Linux or Windows.
 
-The kit's browser lookup scans the default macOS/Linux Playwright caches and a macOS Chrome fallback. It currently
-omits `chrome-linux-arm64/chrome`, Windows cache paths and `PLAYWRIGHT_BROWSERS_PATH`. On a fresh ARM64 install,
-`pnpm exec playwright-core install chromium` succeeds but lookup still fails; a mixed cache can select an older
-browser and mask this. The doctor can report a cache directory ready without finding its executable. These are kit
-lookup limits; see [Playwright's browser installation documentation](https://playwright.dev/docs/browsers) for the
-underlying browser requirements. Use a host with a kit-supported executable layout for filming until discovery is
-fixed ([LEJ-524](https://linear.app/contentionmedia/issue/LEJ-524)). `pnpm run chrome` invokes `google-chrome` on non-macOS platforms, which must be installed separately.
+Filming and the doctor use `chromium.executablePath()` from the installed, locked `playwright-core`, so the
+browser revision and platform layout come from Playwright. `PLAYWRIGHT_BROWSERS_PATH` can select a custom cache;
+set it to the same location for installation and filming. Install the matching browser with
+`pnpm exec playwright-core install chromium`. The kit does not fall back to another cached revision or system
+Chrome. See [Playwright's browser installation documentation](https://playwright.dev/docs/browsers#managing-browser-binaries).
+
+On Nov 7, 2026, the doctor's headless launch, `pnpm run look /` and `pnpm run film requests q03` were verified on
+Ubuntu 24.04 ARM64 (DGX Spark) with Playwright 1.63.0 and Chromium 1243. Filming used synthetic narration timings
+and the local demo, with no paid generation. This verifies browser capture, not a complete video build.
+**Windows is untested and unsupported by this kit.** `pnpm run chrome` invokes `google-chrome` on non-macOS
+platforms, which must be installed separately; the signed-in profile workflow was not verified on Linux.
 
 Remotion uses its own renderer/browser setup for graphics. Installing Playwright's Chromium does not establish
 that Remotion rendering works. Resolve, the ElevenLabs APIs and real application sessions are separate checks.
@@ -106,8 +111,9 @@ that Remotion rendering works. Resolve, the ElevenLabs APIs and real application
 
 - **Missing config or TypeScript cannot resolve the config:** copy the example config, then fill in your paths.
 - **Doctor reports missing key:** check the variable name in `voice.keyEnv` and supply it in the process environment.
-- **Browser installed but not found:** check the platform limits before repeating the same download. A doctor
-  Chromium success line alone is insufficient.
+- **Browser missing or launch fails:** run `pnpm exec playwright-core install chromium` with the same
+  `PLAYWRIGHT_BROWSERS_PATH` used for filming, then rerun `pnpm run doctor`. Check the reported path and launch
+  error; an unrelated cached revision does not satisfy the installed Playwright.
 - **Music missing:** supply the configured file, generate it with the paid API, or omit `music` from the config.
 - **Resolve module import or connection fails:** open Studio, enable Local scripting, and check that the Python used
   by `pnpm run cut` can import `DaVinciResolveScript` from the installed scripting modules. See
@@ -125,5 +131,6 @@ that Remotion rendering works. Resolve, the ElevenLabs APIs and real application
 The audit executed the frozen install, Chromium download, offline tests, TypeScript, demo HTTP request and
 `pnpm run publish requests 1` in folder mode with a synthetic four-second video and matching plan. The real
 ffmpeg publisher produced nine files, rewrote image references and copied the video byte-for-byte. This checks the
-local publication command; the fixture was not a Resolve render. Browser launch, live filming, paid generation,
-Remotion rendering, Resolve and remote publishing were not exercised.
+local publication command; the fixture was not a Resolve render. The Nov 7 browser checks described in
+[platform limits](#platform-limits) additionally exercised local demo screenshots and capture. Paid generation, real application sessions, Remotion rendering, Resolve and remote
+publishing remain unverified.
