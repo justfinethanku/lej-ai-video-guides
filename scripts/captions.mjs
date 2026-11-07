@@ -13,21 +13,20 @@ export function captionCues(plan) {
     const bad = message => fail(`beat ${beat.id}: ${message}`);
     if (!finite(start) || !finite(length) || start < 0 || length <= 0 || start + length > plan.seconds + 0.001
         || !finite(offset) || offset < start || offset >= start + length) bad("missing or invalid vo_start/beat bounds");
-    if (!narration || typeof narration.say !== "string" || !narration.say.trim()
-        || !finite(narration.seconds) || narration.seconds <= 0 || !Array.isArray(narration.words) || !narration.words.length) {
-      bad("missing aligned narration (say, seconds, words)");
+    if (!narration || !finite(narration.seconds) || narration.seconds <= 0 || !Array.isArray(narration.words) || !narration.words.length) {
+      bad("missing aligned narration (seconds, words)");
     }
     if (offset + narration.seconds > start + length + 1 / 30) bad("narration extends beyond the beat");
     let end = 0;
     const words = narration.words.map(word => {
       if (!word || typeof word.text !== "string" || !word.text.trim() || /[\r\n]/.test(word.text)
-          || !finite(word.start) || !finite(word.end) || word.start < end || word.end - word.start < 0.001
-          || word.end > narration.seconds || offset + word.end > start + length + 1 / 30
-          || offset + word.start >= start + length
-          || word.text.trim().length > 42 || word.end - word.start > 7) bad("invalid aligned word text/start/end");
-      end = word.end;
-      return { text: word.text.trim(), start: offset + word.start, end: Math.min(offset + word.end, start + length) };
-    });
+          || !finite(word.start) || !finite(word.end)) bad("missing or non-finite aligned word text/start/end");
+      // Character alignment can contain zero-length words, tiny overlaps and take-tail overshoot.
+      const begin = Math.min(Math.max(0, word.start, end), narration.seconds);
+      end = Math.min(Math.max(word.end, begin + 0.001), narration.seconds);
+      return { text: word.text.trim(), start: offset + begin, end: offset + end };
+    }).filter(word => word.end > word.start);
+    if (!words.length) continue;
     if (words[0].start < previousEnd) bad("narration overlaps the previous beat");
     let group = [];
     const flush = () => {
@@ -43,17 +42,6 @@ export function captionCues(plan) {
     }
     flush();
     previousEnd = words.at(-1).end;
-  }
-  // Only a saved, known music bed justifies non-speech cues; do not guess at screen audio.
-  if (plan.music === true) {
-    const first = cues[0].start, last = cues.at(-1).end;
-    const music = (start, end) => {
-      const count = Math.ceil((end - start) / 7);
-      return Array.from({ length: count }, (_, i) => ({ start: start + (end - start) * i / count,
-        end: start + (end - start) * (i + 1) / count, text: "[Music]" }));
-    };
-    if (first >= 1) cues.unshift(...music(0, first));
-    if (plan.seconds - last >= 1) cues.push(...music(last, plan.seconds));
   }
   return cues.map((cue, i) => ({ ...cue,
     // Hold brief phrases for a second where space permits, without covering the next cue.

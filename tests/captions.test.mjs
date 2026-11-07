@@ -9,25 +9,21 @@ import { transformSync } from "esbuild";
 import { captionCues, webVtt } from "../scripts/captions.mjs";
 import { captionPlan } from "./caption-fixture.mjs";
 
-test("two-beat captions include final-cut lead and beat offsets, with known music only", () => {
+test("two-beat captions include final-cut lead and beat offsets without non-speech cues", () => {
   const plan = captionPlan();
   assert.deepEqual(captionCues(plan), [
-    { start: 0, end: 1.5, text: "[Music]" },
     { start: 1.5, end: 3.5, text: "Open the guide." },
     { start: 7, end: 10, text: "Choose English captions." },
-    { start: 10, end: 12, text: "[Music]" },
   ]);
-  assert.match(webVtt(plan), /^WEBVTT\n\n00:00:00.000 --> 00:00:01.500/);
-  plan.music = false;
-  assert.equal(captionCues(plan).length, 2, "no invented non-speech cues");
+  assert.match(webVtt(plan), /^WEBVTT\n\n00:00:01.500 --> 00:00:03.500/);
 });
 
 test("captions wrap at 42 characters, split long phrases and escape WebVTT markup", () => {
   const plan = captionPlan();
   const text = "Choose the English captions to follow every step and keep reading along <safely> & clearly.";
-  plan.seconds = 30; plan.music = false; plan.beats = [plan.beats[0]];
+  plan.seconds = 30; plan.beats = [plan.beats[0]];
   plan.beats[0].length = 30;
-  plan.beats[0].narration = { say: text, seconds: 25,
+  plan.beats[0].narration = { seconds: 25,
     words: text.split(" ").map((text, i) => ({ text, start: i * 1.2, end: i * 1.2 + 0.8 })) };
   const cues = captionCues(plan);
   assert.ok(cues.length > 2);
@@ -36,16 +32,14 @@ test("captions wrap at 42 characters, split long phrases and escape WebVTT marku
   assert.match(webVtt(plan), /&lt;safely&gt; &amp; clearly\./);
 });
 
-test("missing, nonnumeric, reversed, overlapping and out-of-cut timing fail clearly", () => {
+test("missing, non-finite and invalid cut timing fail clearly", () => {
   const corruptions = [
     p => delete p.beats[0].narration, p => delete p.beats[0].vo_start,
     p => { p.beats[0].vo_start = "0.5"; }, p => { p.seconds = NaN; },
     p => { p.beats[0].narration.words = []; }, p => delete p.beats[0].narration.words[0].end,
     p => { p.beats[0].narration.words[0] = null; }, p => { p.beats = {}; },
-    p => { p.beats[0].narration.words[0].start = -1; },
-    p => { p.beats[0].narration.words[0].end = 0.5; },
-    p => { p.beats[0].narration.words[1].start = 1.2; },
-    p => { p.beats[0].narration.words[2].end = 10; },
+    p => { p.beats[0].narration.words[0].start = NaN; },
+    p => { p.beats[0].narration.words[0].end = Infinity; },
     p => { p.beats[0].length = 2; },
     p => { p.beats[0].narration.seconds = Infinity; },
   ];
@@ -53,6 +47,30 @@ test("missing, nonnumeric, reversed, overlapping and out-of-cut timing fail clea
     const plan = captionPlan(); corrupt(plan);
     assert.throws(() => webVtt(plan), /Caption timing:.*Rebuild the cut.*new version/);
   }
+});
+
+test("character-alignment quirks are clamped instead of requiring a rebuild", () => {
+  const plan = captionPlan();
+  plan.beats = [plan.beats[0]];
+  plan.beats[0].narration.words = [
+    { text: "First.", start: 0, end: 1 },
+    { text: "Next.", start: 0.999, end: 2 }, // 1 ms overlap
+    { text: "Tail.", start: 3, end: 4.005 }, // 5 ms beyond the take
+  ];
+  assert.deepEqual(captionCues(plan), [
+    { text: "First.", start: 0.5, end: 1.5 },
+    { text: "Next.", start: 1.5, end: 2.5 },
+    { text: "Tail.", start: 3.5, end: 4.5 },
+  ]);
+  plan.beats[0].narration.words = [
+    { text: "x".repeat(42), start: 1, end: 1 }, // zero-length word
+    { text: "Next.", start: 1, end: 3 },
+  ];
+  const cues = captionCues(plan);
+  assert.equal(cues[0].start, 1.5);
+  assert.ok(Math.abs(cues[0].end - 1.501) < 1e-9);
+  assert.equal(cues[1].start, cues[0].end);
+  assert.equal(cues[1].end, 3.5);
 });
 
 async function publisher(t, supabase = false) {
@@ -107,6 +125,25 @@ for (const supabase of [false, true]) test(`${supabase ? "Supabase" : "folder"} 
     const rows = requests.filter(r => r.url.includes("/rest/v1/")).map(r => JSON.parse(r.body));
     assert.equal(rows[0].captions_path, "demo/v1/demo-guide-v1.vtt");
     assert.equal(rows[1].captions_path, "demo/v2/demo-guide-v2.vtt");
+  }
+});
+
+for (const supabase of [false, true]) test(`${supabase ? "Supabase" : "folder"} legacy publication leaves captions null`, async t => {
+  const f = await publisher(t, supabase);
+  const plan = captionPlan();
+  for (const beat of plan.beats) { delete beat.narration; delete beat.vo_start; }
+  await f.save(plan);
+  const result = f.run(1);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /publishing without captions/);
+  if (supabase) {
+    const requests = (await readFile(join(f.root, "uploads.jsonl"), "utf8")).trim().split("\n").map(JSON.parse);
+    assert.ok(requests.every(r => !r.url.endsWith(".vtt")));
+    assert.equal(JSON.parse(requests.find(r => r.url.includes("/rest/v1/")).body).captions_path, null);
+  } else {
+    const row = JSON.parse(await readFile(join(f.root, "media/demo/site/v1/guide.json"), "utf8"));
+    assert.equal(row.captions_path, null);
+    await assert.rejects(readFile(join(f.root, "media/demo/site/v1/demo-guide-v1.vtt")), { code: "ENOENT" });
   }
 });
 

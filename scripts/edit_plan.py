@@ -105,7 +105,7 @@ def plan(slug, studio, media):
             "overlays": [{"start": o["start"], "end": o["end"]} for o in entry["overlays"]],
         }
         # Snapshot alignment with the cut; working voice files can change before publication.
-        beats[-1]["narration"] = {k: vo.get(k) for k in ("say", "seconds", "words")}
+        beats[-1]["narration"] = {k: vo.get(k) for k in ("seconds", "words")}
         for o in entry["overlays"]:
             overlays.append({"file": o["file"], "start": t + o["start"], "length": o["end"] - o["start"], "label": o["label"]})
         if beat.get("chapter"):
@@ -121,10 +121,9 @@ def plan(slug, studio, media):
     return guide, {"beats": beats, "overlays": overlays, "title_track": title_track, "titles": titles, "markers": markers, "seconds": t}
 
 
-def publication_plan(p, version, timeline, music=False):
+def publication_plan(p, version, timeline):
     """Snapshot the cut and still-selection metadata together for later publishing."""
     return {
         "schema_version": 2, "version": version, "timeline": timeline, "seconds": p["seconds"],
-        "music": music,
         "beats": [{k: b[k] for k in ("id", "start", "length", "vo_start", "narration", "publish")} for b in p["beats"]],
     }

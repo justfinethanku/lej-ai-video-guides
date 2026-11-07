@@ -20,13 +20,13 @@ real link when it renders.
 
 `site-example/` is a working implementation from a production app, ready to adapt:
 
-- `guides.sql`: the `guides` table (slug, position, title, summary, video/poster paths, running time, written guide
+- `guides.sql`: the `guides` table (slug, position, title, summary, video/caption/poster paths, running time, written guide
   Markdown, as-of date, version, hidden) with service-role RLS, and the private `guides` bucket.
-- `guides.ts` (→ `lib/guides.ts`): loads the rows, signs every video, poster and `asset:` path in one batch call
+- `guides.ts` (→ `lib/guides.ts`): loads the rows, signs every video, caption, poster and `asset:` path in one batch call
   (12-hour links, so a paused video still plays), and resolves `asset:` links for the Markdown.
 - `page.tsx` + `guides.css` (→ `app/guides/`): one section per guide with its title, summary, as-of date and length,
-  the video with its poster, and the written guide in a `<details>` that starts closed. Pictures render as images and
-  `.mp4` loops as silent autoplaying video.
+  the video with its poster and English captions, and the written guide in a `<details>` that starts closed. Pictures render as images and
+  `.mp4` loops as silent video with playback controls.
 
 Things this page gets right that are easy to get wrong:
 
@@ -54,14 +54,15 @@ The receipt detects changes before publication; keep the source render unchanged
 
 ## Captions
 
-Each new cut snapshots narration text, duration, aligned words and the absolute `vo_start` of each beat.
+Each new cut snapshots narration duration, aligned words and the absolute `vo_start` of each beat.
 Publication adds each word's take-relative time to `vo_start`, which already includes the half-second lead-in.
 It groups words into sentences or lines of at most 42 characters and up to 7 seconds, holding short phrases
-for about a second where the next cue permits. A saved music bed adds `[Music]` for intros and outros of at
-least a second. Audio from screen recordings is not inferred.
+for about a second where the next cue permits. Small character-alignment quirks (zero-length words, overlaps
+and take-tail overshoot) are clamped to ordered times within the take. No non-speech cues are generated.
 
-The publisher validates alignment before extraction or upload. Plans without alignment must be rebuilt as a
-new cut version; reading current voice metadata could put new narration over an old video. The caption file is
+The publisher validates saved alignment before extraction or upload. Legacy plans without narration publish
+without captions (`captions_path: null`); build a new cut version to add them. Partial or invalid saved alignment
+still fails. Publishing never reads current voice metadata to caption an older video. The caption file is
 `<page>/v<version>/<page>-guide-v<version>.vtt` beside the video, with `captions_path` in the guide row.
 Publishing a different version leaves earlier caption objects in place.
 
@@ -84,6 +85,6 @@ node tests/captions-playback.mjs out/caption-screens
 The check creates a 12-second synthetic video with ffmpeg, publishes a two-beat fixture through the real folder
 publisher, and loads the server-rendered example page with intercepted local assets. It uses `openSite()` and
 Playwright's Chromium, checks English track discovery and selection, seeks around both narration offsets,
-plays across the second cue boundary, and saves `english-captions.png` with native captions visible.
+plays across the second cue boundary, and saves `english-captions.png` with native captions visible. It removes its `caption-demo` media afterward.
 It needs no credentials, paid generation, app server, Resolve or GPU. Supabase upload and signing are tested
 with intercepted requests in `pnpm test`; this playback check does not contact a live backend.

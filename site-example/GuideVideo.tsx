@@ -16,7 +16,7 @@ type Props = {
 
 // A refreshed signed URL or a different cut starts a separate media attempt.
 export default function GuideVideo(props: Props) {
-  return <VideoAttempt key={props.src} {...props} />;
+  return <VideoAttempt key={JSON.stringify([props.src, props.captions])} {...props} />;
 }
 
 function VideoAttempt({ src, name, className, poster, captions, preload, muted, loop, writtenGuideId }: Props) {

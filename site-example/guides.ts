@@ -1,4 +1,4 @@
-// The Guides page (/guides, table `guides` from guides.sql): loading the rows and signing their videos and pictures.
+// The Guides page (/guides, table `guides` from guides.sql): loading rows and signing videos, captions and pictures.
 import { rest } from "./supabase-rest";
 
 export type GuideRow = {
@@ -21,7 +21,7 @@ const ASSET = /asset:([A-Za-z0-9/_.-]+)/g;
 // Long enough that a video paused over lunch still plays; the page is behind the sign-in.
 const SIGNED_FOR_SECONDS = 12 * 60 * 60;
 
-/** Every bucket path a guide needs signed: its video, its poster, and each asset: reference in its text. */
+/** Every bucket path a guide needs signed: video, captions, poster, and each asset: reference in its text. */
 export function assetPaths(row: GuideRow): string[] {
   const paths = new Set<string>();
   if (row.video_path) paths.add(row.video_path);
@@ -80,7 +80,7 @@ async function signAll(paths: string[]): Promise<Map<string, string>> {
   return out;
 }
 
-/** The guides in page order, each with signed links for its video, poster and pictures. */
+/** The guides in page order, each with signed links for its video, captions, poster and pictures. */
 export async function loadGuides(): Promise<Guide[]> {
   const rows = await rest<GuideRow[]>(
     "guides?select=slug,position,title,summary,video_path,captions_path,poster_path,video_seconds,body_md,as_of,version&hidden=is.false&order=position",
