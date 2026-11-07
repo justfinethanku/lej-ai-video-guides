@@ -7,8 +7,7 @@
 // session.from = "none": a public app or a local demo, no sign-in.
 // serveDir (optional): a folder of static files to film at the site URL without running a server (the demo uses it).
 import { chromium } from "playwright-core";
-import { existsSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG, STUDIO } from "./paths.mjs";
 import { staticFile } from "./static-files.mjs";
@@ -18,25 +17,11 @@ export const SITE = process.env.GUIDES_SITE ?? CONFIG.site;
 export const VIEW = { width: CONFIG.viewport?.width ?? 1440, height: CONFIG.viewport?.height ?? 810 };
 export const SCALE = CONFIG.viewport?.scale ?? 2;
 
-/** Playwright's own Chromium (npx playwright-core install chromium), newest first; the system Chrome as a fallback. */
-function chromePath() {
-  const caches = [join(homedir(), "Library/Caches/ms-playwright"), join(homedir(), ".cache/ms-playwright")];
-  for (const cache of caches.filter(existsSync)) {
-    const builds = readdirSync(cache).filter((d) => /^chromium-\d+$/.test(d)).sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]));
-    for (const b of builds) {
-      for (const p of [
-        join(cache, b, "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
-        join(cache, b, "chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"),
-        join(cache, b, "chrome-linux64/chrome"),
-        join(cache, b, "chrome-linux/chrome"),
-      ]) {
-        if (existsSync(p)) return p;
-      }
-    }
-  }
-  const system = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  if (existsSync(system)) return system;
-  throw new Error("No Chromium found. Run: npx playwright-core install chromium");
+/** Use the Chromium revision and cache location expected by the installed Playwright. */
+export function chromePath() {
+  const path = chromium.executablePath();
+  if (!existsSync(path)) throw new Error(`Chromium executable missing: ${path}. Run: pnpm exec playwright-core install chromium`);
+  return path;
 }
 
 async function sessionCookies(host) {

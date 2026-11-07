@@ -1,8 +1,9 @@
 // Checks everything the kit needs and says what to do about anything missing. pnpm run doctor
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { chromium } from "playwright-core";
+import { chromePath } from "./browser.mjs";
 import { CONFIG, MEDIA, STUDIO } from "./paths.mjs";
 
 const results = [];
@@ -29,11 +30,11 @@ await check("ffmpeg and ffprobe", () => {
   run("ffprobe", ["-version"]);
   return run("ffmpeg", ["-version"]).replace(/ Copyright.*/, "");
 });
-await check("Chromium for filming", () => {
-  const caches = [join(homedir(), "Library/Caches/ms-playwright"), join(homedir(), ".cache/ms-playwright")].filter(existsSync);
-  const found = caches.flatMap((c) => readdirSync(c).filter((d) => /^chromium-\d+$/.test(d)));
-  if (!found.length && !existsSync("/Applications/Google Chrome.app")) throw new Error("Run: npx playwright-core install chromium");
-  return found.length ? found.sort().pop() : "system Chrome";
+await check("Chromium for filming", async () => {
+  const executablePath = chromePath();
+  const browser = await chromium.launch({ executablePath, headless: true, timeout: 10000 });
+  await browser.close();
+  return `${executablePath} (headless launch OK)`;
 });
 await check("Project dependencies", () => {
   if (!existsSync(join(STUDIO, "node_modules", "remotion"))) throw new Error("Run: pnpm install");

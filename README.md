@@ -30,7 +30,7 @@ People who make professional video and want it to be repeatable. You need:
 - **An ElevenLabs account** with access to the configured voice model and, if generating a music bed, the Music API.
   These generation steps can incur provider charges.
 - A Mac (the original tested production path) with **Node 20+**, **ffmpeg and ffprobe**, **Python 3** and **pnpm**.
-  Linux can run the offline checks; Linux ARM64 and Windows have browser-discovery limits described in [setup](docs/setup.md#platform-limits).
+  Linux ARM64 filming and screenshots are also verified; Windows is untested and unsupported. See [platform limits](docs/setup.md#platform-limits).
 
 ## Install
 
@@ -65,8 +65,8 @@ Read each failed line. A missing music bed is expected on first setup: supply yo
 also uses that API. Run the doctor again after supplying these prerequisites.
 
 Use **`pnpm run doctor`** and **`pnpm run publish`**: the shorter forms invoke pnpm's own diagnostics and npm registry
-publisher instead of this kit's scripts. `pnpm run doctor` probes files, tools and the voice endpoint; it does not
-prove browser launch, media-folder writability, render success or paid model access. See [setup checks](docs/setup.md#verify-the-installation).
+publisher instead of this kit's scripts. `pnpm run doctor` probes files, tools and the voice endpoint and launches
+Chromium headlessly; it does not prove media-folder writability, render success or paid model access. See [setup checks](docs/setup.md#verify-the-installation).
 
 ## Your first guide: the demo
 
