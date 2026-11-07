@@ -11,8 +11,8 @@ In the project named by `resolve.project`, the timeline "<Page> guide v<version>
 | Track | Contents |
 | --- | --- |
 | V1 | one clip per beat, back to back: the screen take (2880×1620, scaled to fit) or the rendered graphic |
-| V2, V3 | callouts (ProRes 4444 with alpha), each on whichever of the two is free at that moment |
-| V4 | lower thirds and chapter titles: real Text+ titles in the brand font, each wrapped as a compound clip |
+| V2 upward | callouts (ProRes 4444 with alpha), each on a free track assigned by the offline planner |
+| V4 or higher | lower thirds and chapter titles: real Text+ titles in the brand font, above every callout track |
 | A1 | voice, one take per beat, starting 0.5 s into its beat, at `resolve.voiceDb` |
 | A2 | the music bed at `music.db`, 1 s fade in, 3 s fade out, looped if the video is longer than the bed |
 
@@ -24,12 +24,18 @@ it), exports the cut as DRT, FCPXML 1.10, OTIO and EDL to `<media>/<page>/timeli
 
 `--export-only` re-exports an existing version's cut without rebuilding.
 
+Ordinary cuts retain V2/V3 callouts and V4 titles. Three simultaneous callouts use V2/V3/V4 with titles on V5;
+additional overlaps add tracks as needed. The planner allocates by the actual rounded frame ranges, including
+callouts listed out of time order. See [callout allocation](architecture.md#dependencies-and-data-flow).
+If Resolve rejects a required video track or callout insertion, the build stops before rendering and leaves its
+reserved attempt for inspection; follow [render recovery](#render-completion-and-interrupted-attempts).
+
 ## Traps, each found the hard way
 
 - **`Timeline.InsertFusionTitleIntoTimeline` is an insert edit on V1.** It splits and ripples whatever is there,
   ignores empty upper tracks, and fails on locked tracks. So titles are built first in their own work timeline
-  ("<Page> titles v<N>"), each wrapped with `CreateCompoundClip`, and the compound's media pool item is placed on V4
-  with `AppendToTimeline(trackIndex=4, recordFrame=…)`.
+  ("<Page> titles v<N>"), each wrapped with `CreateCompoundClip`, and the compound's media pool item is placed on
+  the planner's title track (V4 minimum) with `AppendToTimeline(trackIndex=…, recordFrame=…)`.
 - **`AppendToTimeline`'s `endFrame` is exclusive.** With `endFrame = n - 1` every clip is one frame short and black
   frames flash between beats. Lay beats out in whole frames and ask only for frames the file has.
 - **Resolve keeps a clip's length and frames from its first import.** Re-voice a line or re-render a graphic under

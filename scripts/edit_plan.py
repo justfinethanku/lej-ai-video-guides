@@ -4,11 +4,39 @@ The caller supplies the studio and media roots. This module reads only guide inp
 Resolve operations and writing the resulting versioned plan belong to resolve_build.py.
 """
 import json
+import math
 import os
 
 FPS = 30
 LEAD = 0.5
 LOWER_SECONDS = 4.5
+
+
+def layout_overlays(overlays):
+    """Assign callouts to free video tracks using the frames Resolve will place.
+
+    Keep V2/V3 for ordinary cuts and put titles above every callout track. Sort
+    only for allocation; retain the manifest's order and metadata in the result.
+    """
+    scheduled = [dict(o) for o in overlays]
+    intervals = []
+    for i, o in enumerate(scheduled):
+        values = (o["start"], o["length"])
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in values):
+            raise ValueError(f'Callout {o["file"]}: start and length must be finite seconds')
+        start, frames = round(o["start"] * FPS), round(o["length"] * FPS)
+        if o["start"] < 0 or frames < 1:
+            raise ValueError(f'Callout {o["file"]}: requires a nonnegative start and at least one frame')
+        intervals.append((start, start + frames, i))
+    ends = []
+    for start, end, i in sorted(intervals, key=lambda span: (span[0], span[2])):
+        slot = next((j for j, busy_until in enumerate(ends) if busy_until <= start), len(ends))
+        if slot == len(ends):
+            ends.append(end)
+        else:
+            ends[slot] = end
+        scheduled[i]["track"] = slot + 2
+    return scheduled, max(4, len(ends) + 2)
 
 
 def read(path):
@@ -79,7 +107,8 @@ def plan(slug, studio, media):
             start = t + LEAD + (word_time(lo["at"], vo["words"]) if lo.get("at") is not None else 0) - 0.2
             titles.append({"title": lo["title"], "text": lo.get("text", ""), "start": start, "length": min(LOWER_SECONDS, t + length - start - 0.2)})
         t += length
-    return guide, {"beats": beats, "overlays": overlays, "titles": titles, "markers": markers, "seconds": t}
+    overlays, title_track = layout_overlays(overlays)
+    return guide, {"beats": beats, "overlays": overlays, "title_track": title_track, "titles": titles, "markers": markers, "seconds": t}
 
 
 def publication_plan(p, version, timeline):

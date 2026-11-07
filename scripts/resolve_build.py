@@ -7,8 +7,8 @@ Reads the guide script (content/<slug>.json) and the media made by voice.mjs, ca
 Resolve project named in guides.config.json (resolve.project) makes the timeline "<Title> guide v<version>":
 
   V1  screen recordings and full-frame graphics, one clip per beat, back to back
-  V2, V3  callouts (ProRes 4444 with alpha), on whichever of the two is free
-  V4  lower thirds and chapter titles: real Resolve Text+ titles (Inter), each wrapped as a compound clip
+  V2+  callouts (ProRes 4444 with alpha), one free track per simultaneous callout
+  V4 or above  lower thirds and chapter titles: real Resolve Text+ titles (Inter), each wrapped as a compound clip
   A1  voiceover, one take per beat, starting LEAD seconds into its beat
   A2  the music bed, -24 dB under the voice, faded in and out
 
@@ -244,12 +244,15 @@ def main():
     mp.SetCurrentFolder(vbin)
     tl = mp.CreateEmptyTimeline(name)
     project.SetCurrentTimeline(tl)
-    while tl.GetTrackCount("video") < 4:
-        tl.AddTrack("video")
+    while tl.GetTrackCount("video") < p["title_track"]:
+        if not tl.AddTrack("video"):
+            raise RuntimeError("Resolve could not add a required callout/title video track")
     while tl.GetTrackCount("audio") < 2:
         tl.AddTrack("audio", "stereo")
-    for idx, label in ((1, "Screen and graphics"), (2, "Callouts"), (3, "Callouts"), (4, "Titles")):
-        tl.SetTrackName("video", idx, label)
+    tl.SetTrackName("video", 1, "Screen and graphics")
+    for idx in range(2, p["title_track"]):
+        tl.SetTrackName("video", idx, "Callouts")
+    tl.SetTrackName("video", p["title_track"], "Titles")
     tl.SetTrackName("audio", 1, "Voice")
     tl.SetTrackName("audio", 2, "Music")
     start = tl.GetStartFrame()
@@ -266,16 +269,14 @@ def main():
         for it in said or []:
             it.SetProperties({"AudioVolumeEnabled": True, "AudioVolume": VOICE_DB})
 
-    busy = {2: [], 3: []}
     for o in p["overlays"]:
-        s, e = o["start"], o["start"] + o["length"]
-        track = next((k for k in (2, 3) if all(e <= a or s >= z for a, z in busy[k])), 3)
-        busy[track].append((s, e))
         n = int(round(o["length"] * FPS))
-        mp.AppendToTimeline([{"mediaPoolItem": overs[o["file"]], "startFrame": 0, "endFrame": n, "trackIndex": track, "recordFrame": F(s), "mediaType": 1}])
+        placed = mp.AppendToTimeline([{"mediaPoolItem": overs[o["file"]], "startFrame": 0, "endFrame": n, "trackIndex": o["track"], "recordFrame": F(o["start"]), "mediaType": 1}])
+        if not placed or len(placed) != 1:
+            raise RuntimeError(f'Resolve did not place callout {o["file"]} on V{o["track"]}')
 
     for mpi, frames, ti in title_items:
-        mp.AppendToTimeline([{"mediaPoolItem": mpi, "startFrame": 0, "endFrame": frames, "trackIndex": 4, "recordFrame": F(ti["start"]), "mediaType": 1}])
+        mp.AppendToTimeline([{"mediaPoolItem": mpi, "startFrame": 0, "endFrame": frames, "trackIndex": p["title_track"], "recordFrame": F(ti["start"]), "mediaType": 1}])
 
     # The music bed runs under everything and a little past the last word; a second pass covers a long video.
     if music:

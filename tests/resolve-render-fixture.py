@@ -100,7 +100,7 @@ class RenderTests(unittest.TestCase):
             # Do not inherit the operator's media override, if any.
             os.environ.pop('GUIDES_MEDIA', None)
             spec.loader.exec_module(module)
-        module.plan = lambda *a: ({'title': 'Demo'}, {'beats': [], 'overlays': [], 'titles': [], 'markers': [], 'seconds': 4})
+        module.plan = lambda *a: ({'title': 'Demo'}, {'beats': [], 'overlays': [], 'title_track': 4, 'titles': [], 'markers': [], 'seconds': 4})
         with patch.object(sys, 'argv', ['resolve_build.py', 'demo', '1', *args]): module.main()
         return project
 
