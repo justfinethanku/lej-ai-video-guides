@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIG, CONTENT, media, script, STUDIO } from "./paths.mjs";
-import { stillTime } from "./publish-plan.mjs";
+import { stillTime, verifyRender } from "./publish-plan.mjs";
 import { uploadResumable } from "./resumable-upload.mjs";
 
 const P = CONFIG.publish ?? { type: "folder" };
@@ -72,13 +72,14 @@ const [slug, v] = process.argv.slice(2);
 const version = Number(v);
 const guide = script(slug);
 const plan = JSON.parse(readFileSync(media(slug, "renders", `${slug}-guide-v${version}.plan.json`), "utf8"));
+const render = media(slug, "renders", `${slug}-guide-v${version}.mp4`);
+await verifyRender(plan, render, version);
 // New plans carry the graphics metadata for this cut. Only older plans need the mutable manifest.
 let manifest;
 if (plan.beats.some((beat) => !beat.publish)) {
   console.warn("Legacy edit plan: still selection uses the current graphics manifest. Rebuild the cut with a new version to snapshot its metadata.");
   manifest = JSON.parse(readFileSync(media(slug, "graphics", "manifest.json"), "utf8"));
 }
-const render = media(slug, "renders", `${slug}-guide-v${version}.mp4`);
 const beatAt = Object.fromEntries(plan.beats.map((b) => [b.id, b]));
 const dir = `${slug}/v${version}`;
 const out = (name) => media(slug, "publish", `v${version}`, name);

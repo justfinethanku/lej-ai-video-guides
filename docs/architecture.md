@@ -29,7 +29,13 @@ install and TypeScript check do not build that application.
 The graphics manifest describes the current working media. It is overwritten when graphics change.
 The versioned `<slug>/renders/<slug>-guide-v<N>.plan.json` describes a particular cut.
 
-New cuts write `schema_version: 2`, along with `version`, `timeline`, total `seconds` and `beats`.
+New rendered cuts write `schema_version: 3`, along with `version`, `timeline`, total `seconds`, `beats`,
+and a `render` receipt containing `status: complete`, the video basename, positive `bytes`, and `sha256`.
+The builder stages output in a reserved attempt directory and exposes the plan only after the job completes.
+The publisher checks the receipt before extraction or upload. A `--no-render` cut records `status: not_rendered`
+and cannot publish. [Render recovery](resolve.md#render-completion-and-interrupted-attempts) describes interruption,
+version ownership, and hand-edited export limits. The pure `publication_plan()` helper returns timing metadata;
+the render builder adds the completion receipt when committing the artifacts.
 Each saved beat contains:
 
 - `id`: its script identifier.
@@ -42,7 +48,8 @@ stills at 60% of the beat. These decisions use the metadata saved with that cut,
 version does not change still selection for an earlier render. New plans do not need the working graphics manifest
 at publish time.
 
-Older plans have no `publish` fields. They remain supported through the current graphics manifest, with a warning
+Schema 1/2 plans remain supported with an explicit warning that completion and integrity are unverified.
+Plans without `publish` fields remain supported through the current graphics manifest, with a warning
 that still selection depends on that working file. Build a new cut version to create a snapshot; an old plan alone
 cannot recover the graphics metadata that existed when it was rendered.
 
