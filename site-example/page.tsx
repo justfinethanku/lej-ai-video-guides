@@ -63,6 +63,7 @@ export default async function GuidesPage() {
             </p>
             {guide.video ? (
               <GuideVideo className="gd-video" src={guide.video} poster={guide.poster ?? undefined}
+                captions={guide.captions ?? undefined}
                 name={`${guide.title} video guide`} preload="metadata"
                 writtenGuideId={guide.body_md ? `written-${guide.slug}` : undefined} />
             ) : (

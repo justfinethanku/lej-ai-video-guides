@@ -3,7 +3,7 @@
 `scripts/publish.mjs <page> <version>` cuts the written guide's pictures from the render, then publishes by
 `publish.type` in `guides.config.json`:
 
-- **`supabase`**: uploads video, poster, stills and clips to a private Storage bucket under `<page>/v<version>/` and
+- **`supabase`**: uploads video, WebVTT captions, poster, stills and clips to a private Storage bucket under `<page>/v<version>/` and
   upserts one row per guide into a table. Credentials come from `publish.envFile` (`SUPABASE_URL`,
   `SUPABASE_SERVICE_ROLE_KEY`). Files over 20 MB go through the resumable (TUS) endpoint in 6 MiB pieces read from
   disk as needed, resuming from the server's offset after a dropped connection. The publisher deletes an existing
@@ -20,13 +20,13 @@ real link when it renders.
 
 `site-example/` is a working implementation from a production app, ready to adapt:
 
-- `guides.sql`: the `guides` table (slug, position, title, summary, video/poster paths, running time, written guide
+- `guides.sql`: the `guides` table (slug, position, title, summary, video/caption/poster paths, running time, written guide
   Markdown, as-of date, version, hidden) with service-role RLS, and the private `guides` bucket.
-- `guides.ts` (→ `lib/guides.ts`): loads the rows, signs every video, poster and `asset:` path in one batch call
+- `guides.ts` (→ `lib/guides.ts`): loads the rows, signs every video, caption, poster and `asset:` path in one batch call
   (12-hour links, so a paused video still plays), and resolves `asset:` links for the Markdown.
 - `page.tsx` + `guides.css` (→ `app/guides/`): one section per guide with its title, summary, as-of date and length,
-  the video with its poster, and the written guide in a `<details>` that starts closed. Pictures render as images and
-  `.mp4` loops as silent autoplaying video.
+  the video with its poster and English captions, and the written guide in a `<details>` that starts closed. Pictures render as images and
+  `.mp4` loops as silent video with playback controls.
 
 Things this page gets right that are easy to get wrong:
 
@@ -51,3 +51,40 @@ cancelled, skipped, or changed render; do not edit the receipt to accept a parti
 See [render completion and recovery](resolve.md#render-completion-and-interrupted-attempts).
 Schema 1/2 plans retain compatibility with a warning; their historical completion cannot be proved from the plan.
 The receipt detects changes before publication; keep the source render unchanged while publishing.
+
+## Captions
+
+Each new cut snapshots narration duration, aligned words and the absolute `vo_start` of each beat.
+Publication adds each word's take-relative time to `vo_start`, which already includes the half-second lead-in.
+It groups words into sentences or lines of at most 42 characters and up to 7 seconds, holding short phrases
+for about a second where the next cue permits. Small character-alignment quirks (zero-length words, overlaps
+and take-tail overshoot) are clamped to ordered times within the take. No non-speech cues are generated.
+
+The publisher validates saved alignment before extraction or upload. Legacy plans without narration publish
+without captions (`captions_path: null`); build a new cut version to add them. Partial or invalid saved alignment
+still fails. Publishing never reads current voice metadata to caption an older video. The caption file is
+`<page>/v<version>/<page>-guide-v<version>.vtt` beside the video, with `captions_path` in the guide row.
+Publishing a different version leaves earlier caption objects in place.
+
+For an existing site, add a nullable `captions_path text` column to its `guides` table through that app's migration
+process before updating the publisher and loader. The example schema includes it for new installations.
+The loader signs captions in the same batch as the video; the player exposes a default English track.
+The video uses `crossOrigin="anonymous"` so signed caption URLs can load from Storage. Allow the app origin
+in the media host's CORS configuration.
+
+## Verify caption playback
+
+Use a scratch copy of the kit with dependencies and Playwright Chromium installed. Set `guides.config.json`
+to folder publication, a scratch media directory, `session.from: "none"`, `site: "http://caption-playback.test"`,
+and omit `serveDir`. Run the opt-in check from the kit root:
+
+```bash
+node tests/captions-playback.mjs out/caption-screens
+```
+
+The check creates a 12-second synthetic video with ffmpeg, publishes a two-beat fixture through the real folder
+publisher, and loads the server-rendered example page with intercepted local assets. It uses `openSite()` and
+Playwright's Chromium, checks English track discovery and selection, seeks around both narration offsets,
+plays across the second cue boundary, and saves `english-captions.png` with native captions visible. It removes its `caption-demo` media afterward.
+It needs no credentials, paid generation, app server, Resolve or GPU. Supabase upload and signing are tested
+with intercepted requests in `pnpm test`; this playback check does not contact a live backend.

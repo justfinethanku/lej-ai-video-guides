@@ -101,13 +101,14 @@ test('missing written content has no dead fallback; motion clips recover indepen
   assert.match(clipStatus.textContent, /could not.*load/i);
 });
 
-test('replacement source clears old failure and ignores events from the detached player', async t => {
+for (const replacement of [{ video: 'https://example.test/new-cut.mp4' }, { captions: 'https://example.test/renewed.vtt' }])
+test(`replacement ${Object.keys(replacement)[0]} clears old failure and ignores detached-player events`, async t => {
   const { document: d, event, render } = await fixture(t);
   const old = d.querySelector('.gd-video');
   await event(old, 'error');
   const status = d.getElementById(old.getAttribute('aria-describedby'));
   assert.ok(status?.textContent.includes('could not'), 'original failure is visible');
-  await render([{ ...guide, video: 'https://example.test/new-cut.mp4' }]);
+  await render([{ ...guide, ...replacement }]);
   const current = d.querySelector('.gd-video');
   assert.ok(current !== old);
   const currentStatus = d.getElementById(current.getAttribute('aria-describedby'));

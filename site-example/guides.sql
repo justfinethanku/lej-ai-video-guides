@@ -1,12 +1,15 @@
 -- The Guides page (/guides): one narrated video and one written guide per page of the app (see docs/publishing.md).
 -- Text lives here so a guide can be corrected without a deploy; the videos, posters, screenshots and motion loops live
 -- in the private Storage bucket `guides`, signed per visit by the page.
+-- Existing installations: run this before updating the loader:
+-- alter table guides add column if not exists captions_path text;
 create table guides (
   slug text primary key,                  -- 'requests', 'settings', …: the page it explains
   position int not null,                  -- order on /guides, low first
   title text not null,                    -- the page's name as the nav shows it
   summary text not null,                  -- one line under the title: what the page is for
   video_path text,                        -- object in bucket `guides`, e.g. 'requests/v1/requests-guide-v1.mp4'
+  captions_path text,                     -- same cut: 'requests/v1/requests-guide-v1.vtt'
   poster_path text,                       -- the video's still before it plays
   video_seconds int,
   body_md text not null default '',       -- the written guide; ![alt](asset:<path>) images and .mp4 loops from the bucket

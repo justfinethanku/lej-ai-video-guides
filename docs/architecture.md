@@ -12,7 +12,7 @@ keep generated media under the configured media root. Each stage can be rerun in
 | `graphics.mjs` | Graphic props, voice timings, captured boxes | `<slug>/graphics/*.mov` and `manifest.json` | Remotion bundler and renderer |
 | `edit_plan.py` | Guide, voice timings, capture metadata, graphics manifest | Returns clip layout, callout track allocation, titles and markers to the caller | Python standard library; explicit studio and media roots |
 | `resolve_build.py` | Edit plan and generated media | Versioned render, `.plan.json`, timeline exports and project export | DaVinci Resolve Studio scripting |
-| `publish.mjs` | Versioned render and plan, written guide, guide metadata | Still images, loops, poster, video and guide row | ffmpeg; folder copy or Supabase upload |
+| `publish.mjs` | Versioned render and plan, written guide, guide metadata | Still images, loops, poster, video, captions and guide row | ffmpeg; folder copy or Supabase upload |
 
 [`paths.mjs`](../scripts/paths.mjs) loads machine configuration and optional environment values for the Node CLIs.
 [`browser.mjs`](../scripts/browser.mjs) owns Chromium discovery, borrowed session cookies and local static routing.
@@ -56,6 +56,8 @@ Each saved beat contains:
 
 - `id`: its script identifier.
 - `start` and `length`: seconds within the finished video, aligned to the 30 fps edit.
+- `vo_start`: absolute narration start in the final cut, including the lead-in.
+- `narration`: take duration (`seconds`) and aligned `words` with text, start and end times.
 - `publish.graphic`: whether the graphics manifest marks it as a full-frame graphic.
 - `publish.overlays`: callout `start` and `end` times in seconds relative to the beat.
 
@@ -69,7 +71,10 @@ Plans without `publish` fields remain supported through the current graphics man
 that still selection depends on that working file. Build a new cut version to create a snapshot; an old plan alone
 cannot recover the graphics metadata that existed when it was rendered.
 
-The snapshot covers extraction timing. Publishing still reads the current `content/<slug>.json` and `.md` for guide
+Plans without saved narration publish without captions (`captions_path: null`). Rebuild a new cut version to
+include aligned captions; publishing never substitutes current voice timings for an older cut.
+
+The snapshot covers extraction and caption timing. Publishing still reads the current `content/<slug>.json` and `.md` for guide
 text and references; those files are not an archived copy of an earlier version's prose.
 
 ## Verify the file contracts

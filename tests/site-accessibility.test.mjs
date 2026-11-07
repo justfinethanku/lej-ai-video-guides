@@ -31,3 +31,16 @@ test('empty and signed-out states retain their original behavior', async () => {
   assert.match((await page([])).body.textContent, /No guides yet/);
   await assert.rejects(page([guide], null), /redirect \/login/);
 });
+test('narrated videos expose a default English caption track; silent loops do not', async () => {
+  const document = await page();
+  const track = document.querySelector('.gd-video track');
+  assert.ok(track);
+  assert.equal(track.getAttribute('kind'), 'captions');
+  assert.equal(track.getAttribute('srclang'), 'en');
+  assert.equal(track.getAttribute('label'), 'English');
+  assert.equal(track.hasAttribute('default'), true);
+  assert.equal(track.getAttribute('src'), guide.captions);
+  assert.equal(document.querySelector('.gd-video').getAttribute('crossorigin'), 'anonymous');
+  assert.equal(document.querySelector('.gd-loop track'), null);
+  assert.equal((await page([{ ...guide, captions: null }])).querySelector('track'), null);
+});

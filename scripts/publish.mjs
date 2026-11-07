@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { CONFIG, CONTENT, media, script, STUDIO } from "./paths.mjs";
 import { stillTime, verifyRender } from "./publish-plan.mjs";
 import { uploadResumable } from "./resumable-upload.mjs";
+import { webVtt } from "./captions.mjs";
 
 const P = CONFIG.publish ?? { type: "folder" };
 const SUPABASE = P.type === "supabase";
@@ -74,6 +75,10 @@ const guide = script(slug);
 const plan = JSON.parse(readFileSync(media(slug, "renders", `${slug}-guide-v${version}.plan.json`), "utf8"));
 const render = media(slug, "renders", `${slug}-guide-v${version}.mp4`);
 await verifyRender(plan, render, version);
+// Pre-caption plans publish without captions. Partial or invalid alignment still fails before any upload.
+const legacyNarration = plan.beats.every(beat => !Object.hasOwn(beat, "narration"));
+const captions = legacyNarration ? null : webVtt(plan);
+if (legacyNarration) console.warn("Legacy edit plan: publishing without captions; build a new cut version to include aligned narration.");
 // New plans carry the graphics metadata for this cut. Only older plans need the mutable manifest.
 let manifest;
 if (plan.beats.some((beat) => !beat.publish)) {
@@ -83,6 +88,8 @@ if (plan.beats.some((beat) => !beat.publish)) {
 const beatAt = Object.fromEntries(plan.beats.map((b) => [b.id, b]));
 const dir = `${slug}/v${version}`;
 const out = (name) => media(slug, "publish", `v${version}`, name);
+const captionName = `${slug}-guide-v${version}.vtt`;
+if (captions !== null) writeFileSync(out(captionName), captions);
 
 // The written guide's pictures: a still where the beat's first callout is fully up, else 60% of the way in.
 let body = readFileSync(join(CONTENT, `${slug}.md`), "utf8");
@@ -111,6 +118,7 @@ const poster = out("poster.jpg");
 ff("-ss", "3", "-i", render, "-frames:v", "1", "-vf", "scale=1920:-2", "-q:v", "2", poster);
 await upload(`${dir}/poster.jpg`, poster, "image/jpeg");
 await upload(`${dir}/${slug}-guide-v${version}.mp4`, render, "video/mp4");
+if (captions !== null) await upload(`${dir}/${captionName}`, out(captionName), "text/vtt; charset=utf-8");
 
 const row = {
   slug,
@@ -118,6 +126,7 @@ const row = {
   title: guide.title,
   summary: guide.summary,
   video_path: `${dir}/${slug}-guide-v${version}.mp4`,
+  captions_path: captions !== null ? `${dir}/${captionName}` : null,
   poster_path: `${dir}/poster.jpg`,
   video_seconds: Math.round(plan.seconds),
   body_md: body,

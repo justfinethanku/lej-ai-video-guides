@@ -6,7 +6,7 @@ narrated video, and the written guide folded underneath (a native `<details>`, c
 | File | Goes to | What it does |
 | --- | --- | --- |
 | `guides.sql` | a migration | the `guides` table and the private `guides` Storage bucket |
-| `guides.ts` | `lib/guides.ts` | loads the rows and signs every video, poster and picture for 12 hours in one call |
+| `guides.ts` | `lib/guides.ts` | loads the rows and signs every video, caption, poster and picture for 12 hours in one call |
 | `supabase-rest.ts` | `lib/supabase-rest.ts` | the minimal server-side database call `guides.ts` uses |
 | `page.tsx`, `GuideVideo.tsx`, `guides.css` | `app/guides/` | the server page and client media-recovery controls |
 
@@ -27,16 +27,26 @@ reports readiness; the button remains mounted to preserve keyboard focus. Narrat
 also offer **Open written guide**, which opens and focuses that guide's disclosure. A failed motion clip has its
 own status and retry control. Reload the page if a signed media link has expired; retry does not renew it.
 The player checks for an existing media error when it mounts, but these recovery controls require JavaScript.
-Changing the video URL resets its recovery state. The controls wrap and their text breaks at narrow widths;
+Changing the video or caption URL resets its recovery state. The controls wrap and their text breaks at narrow widths;
 they add no automatic motion, and reduced-motion preferences disable the disclosure-arrow transition.
 
-The kit does not yet publish synchronized captions for narration; this is tracked in
-[LEJ-527](https://linear.app/contentionmedia/issue/LEJ-527). The written guide is available separately, but it is not
-a synchronized transcript. Supply and verify captions when integrating narrated media.
+The narrated player exposes a default **English** caption track from the guide's signed `captions_path`.
+Publish a new cut to snapshot word alignment and produce its versioned WebVTT file. Legacy plans publish
+without captions; existing rows can leave `captions_path` null until re-cut. For existing installations, run
+this SQL before updating the loader (and before publishing with the new publisher):
+
+```sql
+alter table guides add column if not exists captions_path text;
+```
+
+`guides.sql` includes the column for new installations.
+Allow anonymous CORS requests from the app origin to the signed video and caption URLs.
 
 `pnpm test` includes DOM interaction checks for the demo, server rendering of this page, and real React media-event
 handlers with synthetic guide data. Media events and reload outcomes are injected; no decoding or native playback
-is verified. Axe checks the demo's DOM rules; contrast is checked against its declared
+is verified by those tests. The opt-in caption playback check described in
+[publishing](../docs/publishing.md#verify-caption-playback) decodes synthetic media in the kit's Chromium.
+Axe checks the demo's DOM rules; contrast is checked against its declared
 palette. These checks do not measure layout or screen-reader output. In the integrated app, also check keyboard
 play/pause, failed-media retry and written-guide focus, 320-pixel reflow, reduced motion, and screen-reader
 announcements in a real browser. Check the demo's modal Escape and Tab containment separately.

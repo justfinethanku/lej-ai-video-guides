@@ -14,6 +14,7 @@ const compiled = transformSync(source, { loader: 'tsx', format: 'cjs', jsx: 'aut
 export const guide = {
   slug: 'requests', title: 'Requests', summary: 'Work on requests', as_of: '2026-09-29',
   video: 'https://example.test/guide.mp4', poster: null, video_seconds: 50,
+  captions: 'https://example.test/guide-v1.vtt?token=synthetic',
   body_md: '![Choose a priority](asset:choice.mp4)\n\n![Request list](asset:shot.png)\n\n![](asset:quiet.mp4)',
   assets: { 'choice.mp4': 'https://example.test/choice.mp4?token=synthetic', 'shot.png': 'https://example.test/shot.png', 'quiet.mp4': 'https://example.test/quiet.mp4' },
 };
