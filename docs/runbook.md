@@ -61,6 +61,8 @@ first. Propose the page list and the chapter list for each guide yourself and le
 7. **Cut it in Resolve.** `pnpm run cut <page> <version>`. Builds the timeline, adds Text+ lower
    thirds and chapter titles, chapter markers, zooms, voice and music, renders H.264 1080p, exports the project
    (`.drp`) and the cut (DRT, FCPXML, OTIO, EDL), and appends to the page's `EDIT-LOG.md`. How it works and the traps: [resolve.md](resolve.md).
+   Check the actual archive files as well as the render receipt; [recover missing archives](resolve-recovery.md)
+   without replacing a committed video or discarding an interrupted attempt.
 
 8. **Write the written guide** in `content/<page>.md`: the same page as numbered steps at the moment of action, every
    control and trap from the map (including those the video skips), calm heads-ups as quotes next to what they're

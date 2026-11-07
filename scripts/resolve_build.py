@@ -153,8 +153,9 @@ def export_timeline(resolve, tl, slug, version):
     base = os.path.join(out_dir, f"{slug}-guide-v{version}")
     wrote = []
     for ext, kind in (("drt", resolve.EXPORT_DRT), ("fcpxml", resolve.EXPORT_FCPXML_1_10), ("otio", resolve.EXPORT_OTIO), ("edl", resolve.EXPORT_EDL)):
-        if tl.Export(f"{base}.{ext}", kind, resolve.EXPORT_NONE):
-            wrote.append(f"timelines/{os.path.basename(base)}.{ext}")
+        if not tl.Export(f"{base}.{ext}", kind, resolve.EXPORT_NONE):
+            raise RuntimeError(f"Resolve rejected timeline export: {base}.{ext}")
+        wrote.append(f"timelines/{os.path.basename(base)}.{ext}")
     return wrote
 
 
@@ -189,7 +190,11 @@ def append_one(mp, clip, description):
 def export_only(slug, version):
     """python3 scripts/resolve_build.py <slug> <version> --export-only: re-export an existing timeline's EDL/XML/DRT."""
     resolve = dvr.scriptapp("Resolve")
+    if not resolve:
+        sys.exit("Resolve is not reachable. Open it with external scripting enabled.")
     project = resolve.GetProjectManager().LoadProject(PROJECT)
+    if not project:
+        sys.exit(f'Cannot load Resolve project "{PROJECT}"; export-only does not create a project.')
     guide = read(os.path.join(STUDIO, "content", f"{slug}.json"))
     name = f"{guide['title']} guide v{version}"
     tl = next((project.GetTimelineByIndex(i) for i in range(1, project.GetTimelineCount() + 1) if project.GetTimelineByIndex(i).GetName() == name), None)
@@ -311,9 +316,11 @@ def main():
     # Save the cut and its graphics metadata together: publish.mjs may run after newer graphics exist.
     artifacts.commit(publication_plan(p, version, name))
     os.makedirs(os.path.join(MEDIA, "resolve"), exist_ok=True)
-    pm.SaveProject()
+    if not pm.SaveProject():
+        raise RuntimeError("Resolve did not save the project; render artifacts are already committed. Save the project in Resolve.")
     drp = os.path.join(MEDIA, "resolve", f"{PROJECT} {datetime.now().strftime('%Y-%m-%d %H%M')}.drp")
-    pm.ExportProject(PROJECT, drp, False)
+    if not pm.ExportProject(PROJECT, drp, False):
+        raise RuntimeError(f"Resolve rejected project export: {drp}; render artifacts are already committed.")
     log.append(f"- Project export: resolve/{os.path.basename(drp)}")
     with open(os.path.join(STUDIO, "content", f"{slug}.json")) as f:
         log.append(f"- Script: content/{slug}.json ({len(json.load(f)['beats'])} beats)")

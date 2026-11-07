@@ -23,6 +23,8 @@ it), exports the cut as DRT, FCPXML 1.10, OTIO and EDL to `<media>/<page>/timeli
 `.drp` to `<media>/resolve/`, and appends an entry to `<media>/<page>/EDIT-LOG.md`.
 
 `--export-only` re-exports an existing version's cut without rebuilding.
+For missing timeline or project backups, follow [archive recovery](resolve-recovery.md). Render completion and
+archive completion are separate checks.
 
 Ordinary cuts retain V2/V3 callouts and V4 titles. Three simultaneous callouts use V2/V3/V4 with titles on V5;
 additional overlaps add tracks as needed. The planner allocates by the actual rounded frame ranges, including
@@ -80,7 +82,7 @@ establish the render handoff; they do not replace playback and frame checks from
 Use a new version with rendering enabled when you need a publishable cut. Existing versions and attempt directories
 are never reused automatically, including after an interruption.
 
-If the build fails or you interrupt Python:
+For a failure before the final plan is committed, or if you interrupt Python:
 
 1. Read the printed attempt path and its `job.json`, if job creation succeeded. Inspect that job in Resolve's
    Deliver page. Exiting Python does not stop Resolve; the script avoids the project-wide stop command.
@@ -95,3 +97,6 @@ recovery evidence and build a new version; the publisher cannot admit it without
 protect against process interruption and conflicting version attempts, not every filesystem or power-loss failure.
 Failed attempts and `--no-render` versions intentionally require a new version, rather than silently adopting an
 unverified old file.
+
+A project save/export failure happens after render commit and leaves the final video and plan in place.
+Use [archive recovery](resolve-recovery.md#recover-the-project-backup) rather than rebuilding that version.
