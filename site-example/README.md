@@ -8,7 +8,7 @@ narrated video, and the written guide folded underneath (a native `<details>`, c
 | `guides.sql` | a migration | the `guides` table and the private `guides` Storage bucket |
 | `guides.ts` | `lib/guides.ts` | loads the rows and signs every video, poster and picture for 12 hours in one call |
 | `supabase-rest.ts` | `lib/supabase-rest.ts` | the minimal server-side database call `guides.ts` uses |
-| `page.tsx`, `guides.css` | `app/guides/` | the page |
+| `page.tsx`, `GuideVideo.tsx`, `guides.css` | `app/guides/` | the server page and client media-recovery controls |
 
 Adapt two imports in `page.tsx`: your app's signed-in check (the page shows real screens, so keep it behind your
 login) and the path to `guides.ts`. Needs `react-markdown` and `remark-gfm`. Publish with `publish.type: "supabase"`
@@ -21,11 +21,22 @@ names the clip; use a description of the demonstrated action. Each narrated vide
 includes the guide title in its accessible name. The CSS supplies visible keyboard focus; check the host app's
 text, link and focus colors against its actual backgrounds.
 
+Copy `GuideVideo.tsx` alongside the page. After hydration, a failed video displays a named, polite status and a
+**Retry video** button. Retry reloads the same media URL and stays paused. Once the media can play, the status
+reports readiness; the button remains mounted to preserve keyboard focus. Narrated videos with written content
+also offer **Open written guide**, which opens and focuses that guide's disclosure. A failed motion clip has its
+own status and retry control. Reload the page if a signed media link has expired; retry does not renew it.
+The player checks for an existing media error when it mounts, but these recovery controls require JavaScript.
+Changing the video URL resets its recovery state. The controls wrap and their text breaks at narrow widths;
+they add no automatic motion, and reduced-motion preferences disable the disclosure-arrow transition.
+
 The kit does not yet publish synchronized captions for narration; this is tracked in
 [LEJ-527](https://linear.app/contentionmedia/issue/LEJ-527). The written guide is available separately, but it is not
 a synchronized transcript. Supply and verify captions when integrating narrated media.
 
-`pnpm test` includes DOM interaction checks for the demo and server rendering of this page through React and
-Markdown with synthetic guide data. Axe checks the demo's DOM rules; contrast is checked against its declared
+`pnpm test` includes DOM interaction checks for the demo, server rendering of this page, and real React media-event
+handlers with synthetic guide data. Media events and reload outcomes are injected; no decoding or native playback
+is verified. Axe checks the demo's DOM rules; contrast is checked against its declared
 palette. These checks do not measure layout or screen-reader output. In the integrated app, also check keyboard
-play/pause, modal Escape and Tab containment, 320-pixel reflow and screen-reader announcements in a real browser.
+play/pause, failed-media retry and written-guide focus, 320-pixel reflow, reduced motion, and screen-reader
+announcements in a real browser. Check the demo's modal Escape and Tab containment separately.

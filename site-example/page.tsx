@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { sessionUserId } from "@/lib/auth"; // your app's own "who is signed in" check
 import { asOfLabel, assetUrl, isVideo, loadGuides, runningTime } from "@/lib/guides"; // guides.ts
 import "./guides.css";
+import GuideVideo from "./GuideVideo";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Guides" };
@@ -17,7 +18,7 @@ function pictures(signed: Record<string, string>): Components {
       const url = assetUrl(typeof src === "string" ? src : "", signed);
       if (!url) return null;
       if (isVideo(url)) {
-        return <video className="gd-loop" src={url} controls muted loop playsInline preload="none" aria-label={alt || "Guide demonstration"} />;
+        return <GuideVideo className="gd-loop" src={url} muted loop preload="none" name={alt || "Guide demonstration"} />;
       }
       return <img className="gd-shot" src={url} alt={alt || ""} loading="lazy" />;
     },
@@ -61,12 +62,14 @@ export default async function GuidesPage() {
               {length ? ` · ${length}` : ""}
             </p>
             {guide.video ? (
-              <video className="gd-video" src={guide.video} poster={guide.poster ?? undefined} aria-label={`${guide.title} video guide`} controls preload="metadata" playsInline />
+              <GuideVideo className="gd-video" src={guide.video} poster={guide.poster ?? undefined}
+                name={`${guide.title} video guide`} preload="metadata"
+                writtenGuideId={guide.body_md ? `written-${guide.slug}` : undefined} />
             ) : (
               <p className="gd-pending">The video for this page is being made.</p>
             )}
             {guide.body_md ? (
-              <details className="gd-written">
+              <details id={`written-${guide.slug}`} className="gd-written">
                 <summary>Written guide<span className="gd-sr-only">: {guide.title}</span></summary>
                 <div className="gd-body">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={pictures(guide.assets)} urlTransform={keepAssets}>
