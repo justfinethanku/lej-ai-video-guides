@@ -178,6 +178,14 @@ def import_into(mp, bin_, paths):
     return have
 
 
+def append_one(mp, clip, description):
+    """Require one accepted item before a cut can be rendered and published."""
+    placed = mp.AppendToTimeline([clip])
+    if not isinstance(placed, (list, tuple)) or len(placed) != 1 or not placed[0]:
+        raise RuntimeError(f"Resolve did not place {description}")
+    return placed[0]
+
+
 def export_only(slug, version):
     """python3 scripts/resolve_build.py <slug> <version> --export-only: re-export an existing timeline's EDL/XML/DRT."""
     resolve = dvr.scriptapp("Resolve")
@@ -248,7 +256,8 @@ def main():
         if not tl.AddTrack("video"):
             raise RuntimeError("Resolve could not add a required callout/title video track")
     while tl.GetTrackCount("audio") < 2:
-        tl.AddTrack("audio", "stereo")
+        if not tl.AddTrack("audio", "stereo"):
+            raise RuntimeError("Resolve could not add a required audio track")
     tl.SetTrackName("video", 1, "Screen and graphics")
     for idx in range(2, p["title_track"]):
         tl.SetTrackName("video", idx, "Callouts")
@@ -261,22 +270,19 @@ def main():
     for b in p["beats"]:
         n = int(round(b["length"] * FPS))
         first = int(round(b["from"] * FPS))
-        placed = mp.AppendToTimeline([{"mediaPoolItem": pics[b["picture"]], "startFrame": first, "endFrame": first + n, "trackIndex": 1, "recordFrame": F(b["start"]), "mediaType": 1}])
-        if b["zooms"] and placed:
-            zoom(placed[0], b["zooms"])
+        placed = append_one(mp, {"mediaPoolItem": pics[b["picture"]], "startFrame": first, "endFrame": first + n, "trackIndex": 1, "recordFrame": F(b["start"]), "mediaType": 1}, f'picture for beat {b["id"]}')
+        if b["zooms"]:
+            zoom(placed, b["zooms"])
         vn = int(round(b["vo_seconds"] * FPS))
-        said = mp.AppendToTimeline([{"mediaPoolItem": voices[b["vo"]], "startFrame": 0, "endFrame": vn, "trackIndex": 1, "recordFrame": F(b["vo_start"]), "mediaType": 2}])
-        for it in said or []:
-            it.SetProperties({"AudioVolumeEnabled": True, "AudioVolume": VOICE_DB})
+        said = append_one(mp, {"mediaPoolItem": voices[b["vo"]], "startFrame": 0, "endFrame": vn, "trackIndex": 1, "recordFrame": F(b["vo_start"]), "mediaType": 2}, f'voice for beat {b["id"]}')
+        said.SetProperties({"AudioVolumeEnabled": True, "AudioVolume": VOICE_DB})
 
     for o in p["overlays"]:
         n = int(round(o["length"] * FPS))
-        placed = mp.AppendToTimeline([{"mediaPoolItem": overs[o["file"]], "startFrame": 0, "endFrame": n, "trackIndex": o["track"], "recordFrame": F(o["start"]), "mediaType": 1}])
-        if not placed or len(placed) != 1:
-            raise RuntimeError(f'Resolve did not place callout {o["file"]} on V{o["track"]}')
+        append_one(mp, {"mediaPoolItem": overs[o["file"]], "startFrame": 0, "endFrame": n, "trackIndex": o["track"], "recordFrame": F(o["start"]), "mediaType": 1}, f'callout {o["file"]} on V{o["track"]}')
 
     for mpi, frames, ti in title_items:
-        mp.AppendToTimeline([{"mediaPoolItem": mpi, "startFrame": 0, "endFrame": frames, "trackIndex": p["title_track"], "recordFrame": F(ti["start"]), "mediaType": 1}])
+        append_one(mp, {"mediaPoolItem": mpi, "startFrame": 0, "endFrame": frames, "trackIndex": p["title_track"], "recordFrame": F(ti["start"]), "mediaType": 1}, f'title {ti["title"]}')
 
     # The music bed runs under everything and a little past the last word; a second pass covers a long video.
     if music:
@@ -285,10 +291,9 @@ def main():
         at = 0.0
         while at < total:
             n = int(round(min(bed, total - at) * FPS))
-            placed = mp.AppendToTimeline([{"mediaPoolItem": music, "startFrame": 0, "endFrame": n, "trackIndex": 2, "recordFrame": F(at), "mediaType": 2}])
-            for it in placed or []:
-                it.SetProperties({"AudioVolumeEnabled": True, "AudioVolume": MUSIC_DB})
-                it.SetFades({"FadeIn": FPS if at == 0 else 0, "FadeOut": 3 * FPS if at + bed >= total else 0})
+            placed = append_one(mp, {"mediaPoolItem": music, "startFrame": 0, "endFrame": n, "trackIndex": 2, "recordFrame": F(at), "mediaType": 2}, f'music at {at:g} s')
+            placed.SetProperties({"AudioVolumeEnabled": True, "AudioVolume": MUSIC_DB})
+            placed.SetFades({"FadeIn": FPS if at == 0 else 0, "FadeOut": 3 * FPS if at + bed >= total else 0})
             at += bed
 
     for m in p["markers"]:
