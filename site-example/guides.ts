@@ -7,6 +7,7 @@ export type GuideRow = {
   title: string;
   summary: string;
   video_path: string | null;
+  captions_path: string | null;
   poster_path: string | null;
   video_seconds: number | null;
   body_md: string;
@@ -14,7 +15,7 @@ export type GuideRow = {
   version: number;
 };
 
-export type Guide = GuideRow & { video: string | null; poster: string | null; assets: Record<string, string> };
+export type Guide = GuideRow & { video: string | null; captions: string | null; poster: string | null; assets: Record<string, string> };
 
 const ASSET = /asset:([A-Za-z0-9/_.-]+)/g;
 // Long enough that a video paused over lunch still plays; the page is behind the sign-in.
@@ -24,6 +25,7 @@ const SIGNED_FOR_SECONDS = 12 * 60 * 60;
 export function assetPaths(row: GuideRow): string[] {
   const paths = new Set<string>();
   if (row.video_path) paths.add(row.video_path);
+  if (row.captions_path) paths.add(row.captions_path);
   if (row.poster_path) paths.add(row.poster_path);
   for (const match of row.body_md.matchAll(ASSET)) paths.add(match[1]);
   return [...paths];
@@ -81,12 +83,13 @@ async function signAll(paths: string[]): Promise<Map<string, string>> {
 /** The guides in page order, each with signed links for its video, poster and pictures. */
 export async function loadGuides(): Promise<Guide[]> {
   const rows = await rest<GuideRow[]>(
-    "guides?select=slug,position,title,summary,video_path,poster_path,video_seconds,body_md,as_of,version&hidden=is.false&order=position",
+    "guides?select=slug,position,title,summary,video_path,captions_path,poster_path,video_seconds,body_md,as_of,version&hidden=is.false&order=position",
   );
   const signed = await signAll([...new Set(rows.flatMap(assetPaths))]);
   return rows.map((row) => ({
     ...row,
     video: row.video_path ? signed.get(row.video_path) ?? null : null,
+    captions: row.captions_path ? signed.get(row.captions_path) ?? null : null,
     poster: row.poster_path ? signed.get(row.poster_path) ?? null : null,
     assets: Object.fromEntries(assetPaths(row).map((path) => [path, signed.get(path) ?? ""])),
   }));

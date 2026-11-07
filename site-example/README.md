@@ -30,13 +30,17 @@ The player checks for an existing media error when it mounts, but these recovery
 Changing the video URL resets its recovery state. The controls wrap and their text breaks at narrow widths;
 they add no automatic motion, and reduced-motion preferences disable the disclosure-arrow transition.
 
-The kit does not yet publish synchronized captions for narration; this is tracked in
-[LEJ-527](https://linear.app/contentionmedia/issue/LEJ-527). The written guide is available separately, but it is not
-a synchronized transcript. Supply and verify captions when integrating narrated media.
+The narrated player exposes a default **English** caption track from the guide's signed `captions_path`.
+Publish a new cut to snapshot word alignment and produce its versioned WebVTT file. Existing installations need
+the nullable `captions_path text` column added to `guides` before using the updated publisher and loader;
+`guides.sql` includes it for new installations. Existing rows can leave it null until re-cut.
+Allow anonymous CORS requests from the app origin to the signed video and caption URLs.
 
 `pnpm test` includes DOM interaction checks for the demo, server rendering of this page, and real React media-event
 handlers with synthetic guide data. Media events and reload outcomes are injected; no decoding or native playback
-is verified. Axe checks the demo's DOM rules; contrast is checked against its declared
+is verified by those tests. The opt-in caption playback check described in
+[publishing](../docs/publishing.md#verify-caption-playback) decodes synthetic media in the kit's Chromium.
+Axe checks the demo's DOM rules; contrast is checked against its declared
 palette. These checks do not measure layout or screen-reader output. In the integrated app, also check keyboard
 play/pause, failed-media retry and written-guide focus, 320-pixel reflow, reduced motion, and screen-reader
 announcements in a real browser. Check the demo's modal Escape and Tab containment separately.

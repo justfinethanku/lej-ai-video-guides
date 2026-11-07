@@ -7,6 +7,7 @@ type Props = {
   name: string;
   className: string;
   poster?: string;
+  captions?: string;
   preload: "none" | "metadata";
   muted?: boolean;
   loop?: boolean;
@@ -18,7 +19,7 @@ export default function GuideVideo(props: Props) {
   return <VideoAttempt key={props.src} {...props} />;
 }
 
-function VideoAttempt({ src, name, className, poster, preload, muted, loop, writtenGuideId }: Props) {
+function VideoAttempt({ src, name, className, poster, captions, preload, muted, loop, writtenGuideId }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const statusId = useId();
   const [state, setState] = useState<"idle" | "failed" | "retrying" | "ready">("idle");
@@ -46,9 +47,12 @@ function VideoAttempt({ src, name, className, poster, preload, muted, loop, writ
   return (
     <span className="gd-media">
       <video ref={video} className={className} src={src} poster={poster} controls playsInline
+        crossOrigin={captions ? "anonymous" : undefined}
         preload={preload} muted={muted} loop={loop} aria-label={name} aria-describedby={statusId}
         onError={() => setState("failed")}
-        onCanPlay={() => setState(current => current === "idle" ? current : "ready")} />
+        onCanPlay={() => setState(current => current === "idle" ? current : "ready")}>
+        {captions ? <track kind="captions" src={captions} srcLang="en" label="English" default /> : null}
+      </video>
       <span id={statusId} className="gd-media-status" role="status" aria-atomic="true">{message}</span>
       {state !== "idle" ? (
         <span className="gd-media-actions">

@@ -27,6 +27,8 @@ test("offline planner preserves clip layout, cue-driven titles/zooms and publica
   near(plan.beats[2].from, 2);
   near(plan.seconds, 9.3 * 2 + 281 / 30);
   near(plan.beats[1].vo_start, 9.8);
+  near(saved.beats[1].vo_start, 9.8);
+  assert.deepEqual(saved.beats[1].narration, plan.beats[1].narration);
   assert.deepEqual(plan.beats[1].zooms[0], { x: 700 / 1920, y: 1 - 340 / 1080, scale: 1.5, start: 1.5, end: 4.5 });
   near(plan.overlays[0].start, 10.65);
   near(plan.overlays[0].length, 3.1);
@@ -47,7 +49,7 @@ test("offline planner preserves clip layout, cue-driven titles/zooms and publica
 async function publisher(t) {
   const f = await fixture(t);
   await mkdir(join(f.studio, "scripts"));
-  for (const file of ["paths.mjs", "publish.mjs", "publish-plan.mjs", "resumable-upload.mjs"]) {
+  for (const file of ["paths.mjs", "publish.mjs", "publish-plan.mjs", "resumable-upload.mjs", "captions.mjs"]) {
     await copyFile(new URL(`../scripts/${file}`, import.meta.url), join(f.studio, "scripts", file));
   }
   await writeFile(join(f.studio, "guides.config.json"), JSON.stringify({ media: f.media, publish: { type: "folder" } }));
@@ -83,6 +85,7 @@ test("publishing v1 ignores newer graphics and works after the working manifest 
   assert.deepEqual(await f.times(), expected);
   await rm(f.log);
   await rm(manifestPath);
+  await rm(join(f.media, "demo/vo"), { recursive: true });
   assert.match(f.run().stderr, /Legacy render plan/);
   assert.deepEqual(await f.times(), expected);
   const output = join(f.media, "demo/site/v1");

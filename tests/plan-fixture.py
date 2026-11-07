@@ -14,7 +14,7 @@ def write(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value))
 
-words = [{"text": "Send,", "start": 1}, {"text": "follow-up", "start": 2}, {"text": "SEND!", "start": 4}]
+words = [{"text": "Send,", "start": 1, "end": 1.5}, {"text": "follow-up", "start": 2, "end": 2.8}, {"text": "SEND!", "start": 4, "end": 4.5}]
 assert [word_time(c, words) for c in ("send", "send#2", "followup", 0, 2.75)] == [1, 4, 2, 0, 2.75]
 try:
     word_time("missing", words)
@@ -35,7 +35,7 @@ guide = {
 }
 write(studio / "content/demo.json", guide)
 for beat in guide["beats"]:
-    write(media / slug / "vo" / f"{beat['id']}.json", {"seconds": 8, "words": words})
+    write(media / slug / "vo" / f"{beat['id']}.json", {"say": "Send, follow-up SEND!", "seconds": 8, "words": words})
 write(media / slug / "capture/s1.json", {"seconds": 9.39, "marks": {"button": {"x": 600, "y": 300, "w": 200, "h": 80}}})
 manifest = {
     "g1": {"seconds": 9.3, "graphic": "g1.mov", "overlays": []},

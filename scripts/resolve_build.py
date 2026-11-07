@@ -314,7 +314,7 @@ def main():
 
     log.append("- Timeline exports: " + ", ".join(export_timeline(resolve, tl, slug, version)))
     # Save the cut and its graphics metadata together: publish.mjs may run after newer graphics exist.
-    artifacts.commit(publication_plan(p, version, name))
+    artifacts.commit(publication_plan(p, version, name, music=bool(music)))
     os.makedirs(os.path.join(MEDIA, "resolve"), exist_ok=True)
     if not pm.SaveProject():
         raise RuntimeError("Resolve did not save the project; render artifacts are already committed. Save the project in Resolve.")

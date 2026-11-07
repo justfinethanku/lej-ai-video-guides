@@ -7,6 +7,7 @@ create table guides (
   title text not null,                    -- the page's name as the nav shows it
   summary text not null,                  -- one line under the title: what the page is for
   video_path text,                        -- object in bucket `guides`, e.g. 'requests/v1/requests-guide-v1.mp4'
+  captions_path text,                     -- same cut: 'requests/v1/requests-guide-v1.vtt'
   poster_path text,                       -- the video's still before it plays
   video_seconds int,
   body_md text not null default '',       -- the written guide; ![alt](asset:<path>) images and .mp4 loops from the bucket
