@@ -20,10 +20,10 @@ in <media>/<slug>/EDIT-LOG.md. See docs/GUIDES.md.
 import json
 import os
 import sys
-import time
 from datetime import datetime
 
 from edit_plan import FPS, plan, publication_plan, read
+from render_artifacts import RenderArtifacts
 
 # Where Resolve Studio keeps its scripting module on macOS, Windows and Linux.
 sys.path.append("/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting/Modules")
@@ -197,11 +197,18 @@ def main():
         return export_only(slug, version)
     render = "--no-render" not in sys.argv
     guide, p = plan(slug, STUDIO, MEDIA)
+    artifacts = RenderArtifacts(MEDIA, slug, version)
     resolve = dvr.scriptapp("Resolve")
     if not resolve:
         sys.exit("Resolve is not reachable. Open it and turn on Preferences > System > General > External scripting: Local.")
     pm = resolve.GetProjectManager()
     project = pm.LoadProject(PROJECT) or pm.CreateProject(PROJECT)
+    if project.IsRenderingInProgress():
+        raise RuntimeError("Resolve is already rendering; no timeline was changed")
+    name = f"{guide['title']} guide v{version}"
+    for i in range(1, project.GetTimelineCount() + 1):
+        if project.GetTimelineByIndex(i).GetName() == name:
+            sys.exit(f'The timeline "{name}" already exists. Build the next version number instead; old versions stay as history.')
     project.SetSetting("timelineResolutionWidth", "1920")
     project.SetSetting("timelineResolutionHeight", "1080")
     project.SetSetting("timelineFrameRate", "30")
@@ -234,10 +241,6 @@ def main():
         compound = work.CreateCompoundClip([item], {"name": f"{slug} title {i + 1:02d} · {ti['title']}"})
         title_items.append((compound.GetMediaPoolItem(), frames, ti))
 
-    name = f"{guide['title']} guide v{version}"
-    for i in range(1, project.GetTimelineCount() + 1):
-        if project.GetTimelineByIndex(i).GetName() == name:
-            sys.exit(f'The timeline "{name}" already exists. Build the next version number instead; old versions stay as history.')
     mp.SetCurrentFolder(vbin)
     tl = mp.CreateEmptyTimeline(name)
     project.SetCurrentTimeline(tl)
@@ -295,23 +298,12 @@ def main():
            f"- Music: {os.path.basename(MUSIC)} at {MUSIC_DB:.0f} dB, 1 s fade in, 3 s fade out" if MUSIC else "- Music: none"]
 
     if render:
-        out_dir = os.path.join(MEDIA, slug, "renders")
-        os.makedirs(out_dir, exist_ok=True)
-        project.SetCurrentRenderFormatAndCodec("mp4", "H264")
-        project.SetRenderSettings({"SelectAllFrames": True, "TargetDir": out_dir, "CustomName": f"{slug}-guide-v{version}", "FormatWidth": 1920, "FormatHeight": 1080, "FrameRate": 30,
-                                   "VideoQuality": 12000, "ExportVideo": True, "ExportAudio": True, "AudioCodec": "aac", "AudioBitDepth": 16, "AudioSampleRate": 48000})
-        job = project.AddRenderJob()
-        project.StartRendering([job], False)
-        while project.IsRenderingInProgress():
-            time.sleep(2)
-        status = project.GetRenderJobStatus(job)
+        status = artifacts.render(project)
         log.append(f"- Render: renders/{slug}-guide-v{version}.mp4 · {status.get('JobStatus')} in {status.get('TimeTakenToRenderInMs', 0) / 1000:.0f} s")
 
     log.append("- Timeline exports: " + ", ".join(export_timeline(resolve, tl, slug, version)))
     # Save the cut and its graphics metadata together: publish.mjs may run after newer graphics exist.
-    os.makedirs(os.path.join(MEDIA, slug, "renders"), exist_ok=True)
-    with open(os.path.join(MEDIA, slug, "renders", f"{slug}-guide-v{version}.plan.json"), "w") as f:
-        json.dump(publication_plan(p, version, name), f, indent=2)
+    artifacts.commit(publication_plan(p, version, name))
     os.makedirs(os.path.join(MEDIA, "resolve"), exist_ok=True)
     pm.SaveProject()
     drp = os.path.join(MEDIA, "resolve", f"{PROJECT} {datetime.now().strftime('%Y-%m-%d %H%M')}.drp")

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { stillTime } from "../scripts/publish-plan.mjs";
+import { stillTime, verifyRender } from "../scripts/publish-plan.mjs";
 
 async function fixture(t) {
   const dir = await mkdtemp(join(tmpdir(), "guides-plan-"));
@@ -59,10 +59,11 @@ async function publisher(t) {
   await writeFile(join(bin, "ffmpeg"), `#!${process.execPath}\nimport fs from 'node:fs';\nconst args = process.argv.slice(2);\nfs.appendFileSync(process.env.FFMPEG_LOG, JSON.stringify(args)+'\\n');\nfs.writeFileSync(args.at(-1), 'synthetic image');\n`, { mode: 0o755 });
   // The stand-in is ESM even though its extension is empty.
   await writeFile(join(bin, "package.json"), '{"type":"module"}');
+  const invoke = () => spawnSync(process.execPath, [join(f.studio, "scripts/publish.mjs"), "demo", "1"], {
+    env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FFMPEG_LOG: log }, encoding: "utf8",
+  });
   const run = () => {
-    const result = spawnSync(process.execPath, [join(f.studio, "scripts/publish.mjs"), "demo", "1"], {
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FFMPEG_LOG: log }, encoding: "utf8",
-    });
+    const result = invoke();
     assert.equal(result.status, 0, result.stderr);
     return result;
   };
@@ -70,19 +71,19 @@ async function publisher(t) {
     const args = JSON.parse(line);
     return Number(args[args.indexOf("-ss") + 1]);
   });
-  return { ...f, log, run, times };
+  return { ...f, log, run, invoke, times };
 }
 
 test("publishing v1 ignores newer graphics and works after the working manifest is removed", async (t) => {
   const f = await publisher(t);
   const manifestPath = join(f.media, "demo/graphics/manifest.json");
   await writeFile(manifestPath, JSON.stringify({ g1: { overlays: [{ start: 1, end: 3 }] } }));
-  assert.equal(f.run().stderr, "");
+  assert.match(f.run().stderr, /Legacy render plan/);
   const expected = [8.6, 11.85, 24.25, 3];
   assert.deepEqual(await f.times(), expected);
   await rm(f.log);
   await rm(manifestPath);
-  assert.equal(f.run().stderr, "");
+  assert.match(f.run().stderr, /Legacy render plan/);
   assert.deepEqual(await f.times(), expected);
   const output = join(f.media, "demo/site/v1");
   const row = JSON.parse(await readFile(join(output, "guide.json"), "utf8"));
@@ -101,4 +102,49 @@ test("legacy render plans retain manifest-based selection with an explicit warni
   const result = f.run();
   assert.match(result.stderr, /Legacy edit plan/);
   assert.deepEqual(await f.times(), [8.6, 11.85, 24.25, 3]);
+});
+
+
+test("schema 3 CLI verifies completed bytes before extraction or any publication", async (t) => {
+  const f = await publisher(t);
+  const { createHash } = await import("node:crypto");
+  const render = join(f.media, "demo/renders/demo-guide-v1.mp4");
+  const planPath = join(f.media, "demo/renders/demo-guide-v1.plan.json");
+  const bytes = await readFile(render);
+  const saved = { ...f.saved, schema_version: 3, render: { status: "complete", file: "demo-guide-v1.mp4",
+    bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") } };
+  for (const value of [
+    { ...saved, render: { status: "not_rendered" } },
+    { ...saved, render: { ...saved.render, status: "failed" } },
+    { ...saved, version: 2 },
+    { ...saved, schema_version: 99 },
+    { ...saved, render: { ...saved.render, file: "another.mp4" } },
+    { ...saved, render: { ...saved.render, bytes: bytes.length + 1 } },
+    { ...saved, render: { ...saved.render, sha256: "0".repeat(64) } },
+  ]) {
+    await writeFile(planPath, JSON.stringify(value));
+    assert.notEqual(f.invoke().status, 0);
+    await assert.rejects(readFile(f.log), { code: "ENOENT" });
+    await assert.rejects(readFile(join(f.media, "demo/site/v1/guide.json")), { code: "ENOENT" });
+  }
+  await writeFile(planPath, JSON.stringify(saved));
+  await writeFile(render, Buffer.alloc(bytes.length, 42)); // same-size replacement
+  assert.notEqual(f.invoke().status, 0);
+  await assert.rejects(readFile(f.log), { code: "ENOENT" });
+  await writeFile(render, bytes);
+  assert.equal(f.run().stderr, "");
+  assert.equal(await readFile(join(f.media, "demo/site/v1/demo-guide-v1.mp4"), "utf8"), bytes.toString());
+});
+
+test("receipt verification rejects a symlink even when its target bytes match", async (t) => {
+  const { createHash } = await import("node:crypto");
+  const { symlink } = await import("node:fs/promises");
+  const dir = await mkdtemp(join(tmpdir(), "guides-receipt-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const bytes = Buffer.from("synthetic video");
+  await writeFile(join(dir, "target"), bytes);
+  await symlink(join(dir, "target"), join(dir, "demo.mp4"));
+  const plan = { schema_version: 3, version: 1, render: { status: "complete", file: "demo.mp4",
+    bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") } };
+  await assert.rejects(verifyRender(plan, join(dir, "demo.mp4"), 1), /does not match/);
 });

@@ -51,11 +51,41 @@ it), exports the cut as DRT, FCPXML 1.10, OTIO and EDL to `<media>/<page>/timeli
 
 ## Editing by hand
 
-Open the timeline, edit, render from the Deliver page to the same renders path, then publish. Write the change in
-`EDIT-LOG.md`: the next scripted build starts from the script and won't carry hand edits. For a change that should
-last, put it in the script or in `resolve_build.py`.
+Keep hand-edited exports separately and write the change in `EDIT-LOG.md`. Overwriting a verified render changes
+its checksum, so the publisher rejects it. Put a lasting change in the script or `resolve_build.py`, then build a
+new version through the scripted path. The next scripted build starts from the script and does not carry hand edits.
 
 ## Recovering
 
 Import the newest `.drp` in the Project Manager; or import one cut's `.drt` into any project (File > Import >
 Timeline) and relink media to the production folder.
+
+
+## Render completion and interrupted attempts
+
+Each build reserves `<media>/<page>/renders/.<page>-guide-v<N>.pending/` before changing the timeline.
+Resolve writes its video into that directory. The builder checks format/settings acceptance, job creation/start,
+`JobStatus: Complete`, and a nonempty regular output file. It then records the video's byte count and SHA-256 in
+a schema 3 plan, exposes the final video without replacing an existing file, and exposes the plan last.
+The publisher verifies that receipt before extracting or uploading assets. A completed job status and checksum
+establish the render handoff; they do not replace playback and frame checks from [the quality checklist](quality.md).
+
+`--no-render` builds the timeline and exports but saves `render.status: not_rendered`. That plan cannot publish.
+Use a new version with rendering enabled when you need a publishable cut. Existing versions and attempt directories
+are never reused automatically, including after an interruption.
+
+If the build fails or you interrupt Python:
+
+1. Read the printed attempt path and its `job.json`, if job creation succeeded. Inspect that job in Resolve's
+   Deliver page. Exiting Python does not stop Resolve; the script avoids the project-wide stop command.
+2. Wait for the job to stop, or cancel that specific job in Resolve. Preserve the attempt directory and any
+   partial video for diagnosis. A pending attempt has no final publication plan.
+3. Fix the cause, then run `pnpm run cut <page> <next-version>` using an unused positive version number. Run only
+   one builder against the same Resolve project at a time; the version reservation is not a project-wide lock.
+4. Run `pnpm run publish <page> <next-version>` after the build succeeds, then perform the quality checks.
+
+A process interruption between exposing the video and plan can leave a final video without a plan. Keep it as
+recovery evidence and build a new version; the publisher cannot admit it without its plan. These file operations
+protect against process interruption and conflicting version attempts, not every filesystem or power-loss failure.
+Failed attempts and `--no-render` versions intentionally require a new version, rather than silently adopting an
+unverified old file.

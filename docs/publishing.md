@@ -41,3 +41,13 @@ Things this page gets right that are easy to get wrong:
 Deploy the app through its own path from a commit that is on the main branch, and push it there. A deploy from a
 commit main has moved past, or from a local branch nobody pushed, silently removes whatever it doesn't contain; on
 the app this came from, a later deploy from an unpushed local branch took the Guides page down overnight.
+
+
+## Verify the rendered cut
+
+For schema 3 plans, publishing requires a completed render receipt whose version, filename, byte count, and
+SHA-256 match the video. A mismatch stops before ffmpeg or any upload. Rebuild a new version after a failed,
+cancelled, skipped, or changed render; do not edit the receipt to accept a partial file.
+See [render completion and recovery](resolve.md#render-completion-and-interrupted-attempts).
+Schema 1/2 plans retain compatibility with a warning; their historical completion cannot be proved from the plan.
+The receipt detects changes before publication; keep the source render unchanged while publishing.
