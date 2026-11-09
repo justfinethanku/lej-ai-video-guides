@@ -18,7 +18,7 @@ In the project named by `resolve.project`, the timeline "<Page> guide v<version>
 
 Chapter markers go on the timeline. Zooms are a Fusion Transform added to the V1 clip, keyframed about the element's
 centre (scaling about an interior point keeps the frame covered). Then it renders H.264 1080p30 to
-`<media>/<page>/renders/`, writes the beat layout to `.plan.json` (publish.mjs cuts the written guide's pictures with
+`<media>/<page>/renders/`, [checks every zoom in the rendered video](#zooms-are-checked-in-the-render), writes the beat layout to `.plan.json` (publish.mjs cuts the written guide's pictures with
 it), exports the cut as DRT, FCPXML 1.10, OTIO and EDL to `<media>/<page>/timelines/`, exports the whole project as a
 `.drp` to `<media>/resolve/`, and appends an entry to `<media>/<page>/EDIT-LOG.md`.
 
@@ -50,8 +50,21 @@ reserved attempt for inspection; follow [render recovery](#render-completion-and
   left enabled draws an outline. The lower third sets `Enabled2 = 0` and builds its plate from a Background tool
   masked by a RectangleMask instead.
 - **Fusion keyframes**: `tool.AddModifier("Blend", "BezierSpline")` (or `"XYPath"` for points), then
-  `tool.SetInput(name, value, frame)`. Comp frame 0 is the start of the clip's source range.
-- **Checking a frame without watching:** `project.ExportCurrentFrameAsStill(path)` after `timeline.SetCurrentTimecode`.
+  `tool.SetInput(name, value, frame)`. Frames count from the clip's first frame on the timeline, which is the comp's
+  `COMPN_RenderStart` (0 in Resolve 21.1.1, also for a clip with an in-point; its `COMPN_GlobalStart` is negative
+  by the in-point, so never count from that).
+- **Never build a zoom's comp between `comp.Lock()` and `comp.Unlock()`.** In Resolve 21.1.1 the tools and keyframes
+  added to a media clip's comp while it is locked stay in the comp object: `GetInput` reads them back and
+  `ExportFusionComp` writes them out exactly as built. But they are never saved onto the clip, so the render delivers
+  the bare take. This is how every zoom went missing from renders while the build reported success (measured Nov 8
+  2026: four zooms on three clips all rendered at 1.00x; the same calls without the lock rendered at 1.50x, 2.00x,
+  1.80x and 1.40x as written). The lower thirds are different: a Text+ title's comp, built locked inside
+  `StartUndo`/`EndUndo(True)`, did render in the same test.
+- **Reading a comp back proves nothing about the render.** Neither does `JobStatus: Complete`. Check the rendered
+  file.
+- **Checking a frame without watching:** take it from the render (`ffmpeg -ss <seconds> -i render.mp4 -frames:v 1
+  frame.png`). `project.ExportCurrentFrameAsStill(path)` has returned stale and incomplete frames; don't trust it
+  for anything that moves.
 - **Resolve only sees fonts installed on the machine.** A web font in `brand.font` (loaded by Remotion from Google
   Fonts) makes the render fail at the first title with "The Fusion composition at … could not be processed
   successfully" (read it with `project.GetRenderJobStatus(job)`). Install the font, or set `brand.titleFont` to an
@@ -100,3 +113,21 @@ unverified old file.
 
 A project save/export failure happens after render commit and leaves the final video and plan in place.
 Use [archive recovery](resolve-recovery.md#recover-the-project-backup) rather than rebuilding that version.
+
+## Zooms are checked in the render
+
+After the render job completes and before the plan is exposed, `scripts/zoom_check.py` reads frames back out of the
+rendered video. For each zoom it takes the frame just before the push in, the middle of the hold and the frame just
+after the pull back, and compares each with the same moment of the source take: unzoomed, zoomed as the script
+wrote it, zoomed 15% less and 15% more, and zoomed about the frame centre. The hold has to match the zoom as written;
+the frames either side have to match the unzoomed take. The edit log gets a `Zooms:` line with the count.
+
+If a zoom is missing, the wrong size, about the wrong point, or never pulls back, the build stops there and names the
+beat, the mark, the frame, the size wanted and the size the render shows. Nothing is published: the video stays in
+the `.pending` directory, as with any other failed render. Fix the cause and build the next version.
+
+- A picture with too little detail to tell a zoom apart (a blank page) is reported in the log line, not failed.
+- `python3 scripts/zoom_check.py <page> <version>` runs the same check on a render that already exists. It plans
+  from the current script and takes, so run it before either changes.
+- `--no-zoom-check` on `resolve_build.py` skips the check and writes `Zooms: not checked` in the edit log. Use it
+  only when you have watched the zooms in the render yourself.

@@ -11,6 +11,7 @@ import os
 FPS = 30
 LEAD = 0.5
 LOWER_SECONDS = 4.5
+EASE = 0.6  # seconds a zoom takes to push in, and to pull back out
 
 
 def layout_overlays(overlays):
@@ -48,8 +49,54 @@ def layout_overlays(overlays):
 
 
 def read(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def plan_zooms(beat, cap, words, length):
+    """A beat's zooms as pivot (frame fractions, y up), scale and start/end seconds into the take.
+
+    Rejects what would render as a different move from the one written: a zoom on a beat with no filmed take, a
+    mark the take did not record, a scale that uncovers the frame, an end before its start, or two zooms whose
+    ramps run into each other.
+    """
+    if not beat.get("zoom"):
+        return []
+    if cap is None:
+        raise ValueError(f'Beat {beat["id"]}: a zoom needs a filmed take; media and graphic beats have no recorded marks')
+    zooms = []
+    for z in beat["zoom"]:
+        where = f'Beat {beat["id"]}: zoom on "{z.get("mark")}"'
+        box = cap.get("marks", {}).get(z.get("mark"))
+        if not box:
+            raise ValueError(f"{where}: the take did not record that mark")
+        scale = z.get("scale", 1.5)
+        if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not math.isfinite(scale) or scale <= 1:
+            raise ValueError(f"{where}: scale must be a number above 1 (a smaller picture leaves the frame uncovered)")
+        zs = LEAD + word_time(z["at"], words)
+        ze = LEAD + word_time(z["until"], words) if z.get("until") else length - 0.3
+        if ze <= zs:
+            raise ValueError(f'{where}: "until" must come after "at"')
+        if zooms and zs - EASE < zooms[-1]["end"]:
+            raise ValueError(f"{where}: starts before the previous zoom has pulled back; leave {EASE:g} s between them")
+        zooms.append({"mark": z["mark"], "x": (box["x"] + box["w"] / 2) / 1920, "y": 1 - (box["y"] + box["h"] / 2) / 1080, "scale": scale, "start": zs, "end": ze})
+    return zooms
+
+
+def zoom_keys(zooms):
+    """Keyframes for a clip's zooms, counted in frames from the clip's first frame.
+
+    Returns (size keys, pivot keys). Each zoom holds 1.0 until EASE before its start, reaches its scale at the
+    start, holds it until EASE before the end, and is back at 1.0 at the end. The pivot sits on the element for
+    the whole move; scaling about a point inside the frame keeps the frame covered.
+    """
+    ease = int(EASE * FPS)
+    size, pivot = [(0, 1.0)], []
+    for z in zooms:
+        a, b = int(z["start"] * FPS), int(z["end"] * FPS)
+        size += [(max(0, a - ease), 1.0), (a, z["scale"]), (max(a, b - ease), z["scale"]), (b, 1.0)]
+        pivot += [(max(0, a - ease), (z["x"], z["y"])), (b, (z["x"], z["y"]))]
+    return size, pivot
 
 
 def word_time(at, words):
@@ -79,6 +126,7 @@ def plan(slug, studio, media):
         vo = read(os.path.join(media, slug, "vo", f"{beat['id']}.json"))
         entry = manifest[beat["id"]]
         media_from = 0.0
+        cap = None
         if beat.get("media"):
             picture = entry["media"]["file"]
             media_from = float(entry["media"].get("from", 0))
@@ -93,12 +141,7 @@ def plan(slug, studio, media):
             length = int(cap["seconds"] * FPS) / FPS
         # Whole frames, so each clip butts against the next with no gap.
         length = round(length * FPS) / FPS
-        zooms = []
-        for z in beat.get("zoom", []):
-            box = cap["marks"][z["mark"]]
-            zs = LEAD + word_time(z["at"], vo["words"])
-            ze = LEAD + word_time(z["until"], vo["words"]) if z.get("until") else length - 0.3
-            zooms.append({"x": (box["x"] + box["w"] / 2) / 1920, "y": 1 - (box["y"] + box["h"] / 2) / 1080, "scale": z.get("scale", 1.5), "start": zs, "end": ze})
+        zooms = plan_zooms(beat, cap, vo["words"], length)
         beats.append({"id": beat["id"], "picture": picture, "from": media_from, "start": t, "length": length, "zooms": zooms, "vo": os.path.join(media, slug, "vo", f"{beat['id']}.wav"), "vo_start": t + LEAD, "vo_seconds": vo["seconds"]})
         beats[-1]["publish"] = {
             "graphic": bool(entry.get("graphic")),

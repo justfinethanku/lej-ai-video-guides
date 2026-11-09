@@ -1,6 +1,6 @@
 """Builds one guide's edit in DaVinci Resolve Studio, renders it, and exports the project and the cut.
 
-    python3 scripts/resolve_build.py <slug> <version> [--no-render]
+    python3 scripts/resolve_build.py <slug> <version> [--no-render] [--no-zoom-check]
 
 Resolve must be running with external scripting on (Preferences > System > General > External scripting: Local).
 Reads the guide script (content/<slug>.json) and the media made by voice.mjs, capture.mjs and graphics.mjs, then in the
@@ -12,7 +12,8 @@ Resolve project named in guides.config.json (resolve.project) makes the timeline
   A1  voiceover, one take per beat, starting LEAD seconds into its beat
   A2  the music bed, -24 dB under the voice, faded in and out
 
-and adds a marker at each chapter. The cut is also exported as DRT, FCPXML, OTIO and EDL to <media>/<slug>/timelines/
+and adds a marker at each chapter. After the render, every zoom is checked in the rendered video itself (zoom_check.py);
+a render with a zoom missing is not published (--no-zoom-check skips this). The cut is also exported as DRT, FCPXML, OTIO and EDL to <media>/<slug>/timelines/
 (--export-only re-exports an existing version without rebuilding). Earlier versions' timelines are left in the project as history. The render goes to
 <media>/<slug>/renders/<slug>-guide-v<version>.mp4 and the project is exported to <media>/resolve/. Every build is logged
 in <media>/<slug>/EDIT-LOG.md. See docs/GUIDES.md.
@@ -22,7 +23,8 @@ import os
 import sys
 from datetime import datetime
 
-from edit_plan import FPS, plan, publication_plan, read
+import zoom_check
+from edit_plan import FPS, plan, publication_plan, read, zoom_keys
 from render_artifacts import RenderArtifacts
 
 # Where Resolve Studio keeps its scripting module on macOS, Windows and Linux.
@@ -36,7 +38,7 @@ elif sys.platform.startswith("linux"):
 import DaVinciResolveScript as dvr  # noqa: E402
 
 STUDIO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-with open(os.path.join(STUDIO, "guides.config.json")) as _f:
+with open(os.path.join(STUDIO, "guides.config.json"), encoding="utf-8") as _f:
     CONFIG = json.load(_f)
 MEDIA = os.path.expanduser(os.environ.get("GUIDES_MEDIA", CONFIG["media"]))
 PROJECT = CONFIG["resolve"]["project"]
@@ -54,6 +56,14 @@ def _rgb(hex_color, fallback):
 
 
 PLATE = _rgb(CONFIG.get("brand", {}).get("text"), "#333333")  # lower-third plate: the brand's text colour
+
+
+def say(text):
+    """Print the build's report even where the terminal can't carry its characters (cron, a bare shell)."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("ascii", "replace").decode())
 
 
 def lower_third(comp, title_text, sub_text, frames):
@@ -120,28 +130,31 @@ def lower_third(comp, title_text, sub_text, frames):
 
 def zoom(item, zooms):
     """Push in on part of a screen recording: a Fusion Transform on the clip, scaling about the point of interest
-    (which keeps the frame covered), easing in and out over 0.6 s. Callouts are drawn in unzoomed positions, so a
-    beat's script never zooms while a callout is up."""
+    (which keeps the frame covered), moving in and out over 0.6 s. Callouts are drawn in unzoomed positions, so a
+    beat's script never zooms while a callout is up.
+
+    The comp is built unlocked. Between comp.Lock() and comp.Unlock() Resolve 21 keeps the new tools and keyframes
+    in the comp (they read back, and export, exactly as written) but never saves them onto the clip, so the render
+    shows the bare take with no move. Reading the comp back proves nothing; zoom_check.py checks the render."""
     comp = item.AddFusionComp()
-    comp.Lock()
+    if comp is None:
+        raise RuntimeError("Resolve did not add a Fusion composition for a zoom")
     src = comp.FindToolByID("MediaIn")
     out = comp.FindToolByID("MediaOut")
     xf = comp.AddTool("Transform", 1, 1)
+    if src is None or out is None or xf is None:
+        raise RuntimeError("Resolve did not build the Fusion composition for a zoom")
     xf.Input = src
     out.Input = xf
     xf.AddModifier("Size", "BezierSpline")
     xf.AddModifier("Pivot", "XYPath")
-    ease = int(0.6 * FPS)
-    xf.SetInput("Size", 1.0, 0)
-    for z in zooms:
-        a, b = int(z["start"] * FPS), int(z["end"] * FPS)
-        xf.SetInput("Pivot", [z["x"], z["y"]], max(0, a - ease))
-        xf.SetInput("Size", 1.0, max(0, a - ease))
-        xf.SetInput("Size", z["scale"], a)
-        xf.SetInput("Size", z["scale"], max(a, b - ease))
-        xf.SetInput("Size", 1.0, b)
-        xf.SetInput("Pivot", [z["x"], z["y"]], b)
-    comp.Unlock()
+    # Comp frames count from the clip's first frame, which is the comp's render start (not its global start).
+    first = int((comp.GetAttrs() or {}).get("COMPN_RenderStart", 0))
+    size, pivot = zoom_keys(zooms)
+    for frame, value in size:
+        xf.SetInput("Size", value, first + frame)
+    for frame, (x, y) in pivot:
+        xf.SetInput("Pivot", [x, y], first + frame)
 
 
 def export_timeline(resolve, tl, slug, version):
@@ -201,7 +214,7 @@ def export_only(slug, version):
     if not tl:
         sys.exit(f'No timeline "{name}" in {PROJECT}.')
     project.SetCurrentTimeline(tl)
-    print(name, export_timeline(resolve, tl, slug, version))
+    say(f"{name} {export_timeline(resolve, tl, slug, version)}")
 
 
 def main():
@@ -209,6 +222,7 @@ def main():
     if "--export-only" in sys.argv:
         return export_only(slug, version)
     render = "--no-render" not in sys.argv
+    check_zooms = "--no-zoom-check" not in sys.argv
     guide, p = plan(slug, STUDIO, MEDIA)
     artifacts = RenderArtifacts(MEDIA, slug, version)
     resolve = dvr.scriptapp("Resolve")
@@ -311,6 +325,12 @@ def main():
     if render:
         status = artifacts.render(project)
         log.append(f"- Render: renders/{slug}-guide-v{version}.mp4 · {status.get('JobStatus')} in {status.get('TimeTakenToRenderInMs', 0) / 1000:.0f} s")
+        if any(b["zooms"] for b in p["beats"]):
+            # Before anything is published: a Complete job can still have delivered a picture with no camera move.
+            try:
+                log.append("- Zooms: " + (zoom_check.require(artifacts.staged_video, p) if check_zooms else "not checked (--no-zoom-check)"))
+            except RuntimeError as e:
+                raise RuntimeError(f"{e}\nThe render is kept in {artifacts.pending} and was not published. Fix the cut and build the next version.") from None
 
     log.append("- Timeline exports: " + ", ".join(export_timeline(resolve, tl, slug, version)))
     # Save the cut and its graphics metadata together: publish.mjs may run after newer graphics exist.
@@ -322,13 +342,13 @@ def main():
     if not pm.ExportProject(PROJECT, drp, False):
         raise RuntimeError(f"Resolve rejected project export: {drp}; render artifacts are already committed.")
     log.append(f"- Project export: resolve/{os.path.basename(drp)}")
-    with open(os.path.join(STUDIO, "content", f"{slug}.json")) as f:
+    with open(os.path.join(STUDIO, "content", f"{slug}.json"), encoding="utf-8") as f:
         log.append(f"- Script: content/{slug}.json ({len(json.load(f)['beats'])} beats)")
     path = os.path.join(MEDIA, slug, "EDIT-LOG.md")
     head = "" if os.path.exists(path) else f"# {guide['title']} guide: edit log\n\nNewest first is not enforced; each build appends. See docs/GUIDES.md for how a build works.\n\n"
-    with open(path, "a") as f:
+    with open(path, "a", encoding="utf-8") as f:
         f.write(head + "\n".join(log) + "\n\n")
-    print("\n".join(log))
+    say("\n".join(log))
 
 
 def _tc(frame, tl):

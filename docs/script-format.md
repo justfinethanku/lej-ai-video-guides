@@ -36,7 +36,11 @@ Optional on any beat:
   a ring and label on a recorded element from one word to another (or to the beat's end). `dim: true` darkens
   everything else; use `false` when several things are pointed at in a row.
 - `"zoom": [{"mark": "<name>", "at": "word", "until": "word", "scale": 1.5}]`: push in on an element. Keep zooms and
-  callouts at different moments: callout positions are drawn for the unzoomed frame.
+  callouts at different moments: callout positions are drawn for the unzoomed frame. A zoom takes 0.6 s to push in
+  (arriving on `at`) and 0.6 s to pull back (finishing on `until`, or just before the beat ends). The build refuses
+  a zoom it can't deliver as written: on a `media` or `graphic` beat (only filmed takes record marks), on a mark the
+  take didn't record, with a `scale` of 1 or less, with `until` at or before `at`, or starting less than 0.6 s after
+  the previous zoom in the same beat ends.
 
 ## A shot
 
