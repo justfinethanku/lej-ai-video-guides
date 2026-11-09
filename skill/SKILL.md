@@ -70,7 +70,8 @@ first. Propose the page list and the chapter list for each guide yourself and le
    boxes.
 
 7. **Cut it in Resolve.** `pnpm run cut <page> <version>`. Builds the timeline, adds Text+ lower
-   thirds and chapter titles, chapter markers, zooms, voice and music, renders H.264 1080p, exports the project
+   thirds and chapter titles, chapter markers, zooms, voice and music, renders H.264 1080p, checks every zoom in the rendered video (a
+   missing zoom stops the build), exports the project
    (`.drp`) and the cut (DRT, FCPXML, OTIO, EDL), and appends to the page's `EDIT-LOG.md`. How it works and the traps: `docs/resolve.md`.
 
 8. **Write the written guide** in `content/<page>.md`: the same page as numbered steps at the moment of action, every

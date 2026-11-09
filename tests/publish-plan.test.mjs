@@ -30,7 +30,7 @@ test("offline planner preserves clip layout, cue-driven titles/zooms and publica
   near(saved.beats[1].vo_start, 9.8);
   assert.deepEqual(saved.beats[1].narration, plan.beats[1].narration);
   assert.deepEqual(Object.keys(saved.beats[1].narration), ["seconds", "words"]);
-  assert.deepEqual(plan.beats[1].zooms[0], { x: 700 / 1920, y: 1 - 340 / 1080, scale: 1.5, start: 1.5, end: 4.5 });
+  assert.deepEqual(plan.beats[1].zooms[0], { mark: "button", x: 700 / 1920, y: 1 - 340 / 1080, scale: 1.5, start: 1.5, end: 4.5 });
   near(plan.overlays[0].start, 10.65);
   near(plan.overlays[0].length, 3.1);
   assert.equal(plan.markers[0].name, "First");

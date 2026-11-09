@@ -15,7 +15,7 @@
 | voice | Durations look right; transcribe a take or two (ElevenLabs speech-to-text) for names and acronyms. |
 | film | A frame from each take: the right screen, loaded, cursor on target. Any `FAILED` line names the step. |
 | graphics | Composite one callout over its take (`ffmpeg … overlay`) and see the ring sit on the element. |
-| cut | Frames at every chapter via `ExportCurrentFrameAsStill` or from the render; the title card lists the chapters; no black frames between beats. |
+| cut | Frames at every chapter, taken from the render (`ffmpeg -ss <seconds> -i render.mp4 -frames:v 1 frame.png`; `ExportCurrentFrameAsStill` has returned stale frames); the title card lists the chapters; no black frames between beats. The edit log's `Zooms:` line counts every zoom in the script: the build checks each one in the rendered video and stops if one is missing. |
 | render | `ffmpeg -i render.mp4 -af ebur128 -f null -` reads about −15 LUFS integrated; re-voiced lines play in full (transcribe the beat's span). |
 | publish | Uploaded sizes match the local files. Open the Guides page signed in, expand every written guide, and confirm every picture and clip loads (a headless check: count `img.naturalWidth > 0` and `video.readyState > 0`). |
 
